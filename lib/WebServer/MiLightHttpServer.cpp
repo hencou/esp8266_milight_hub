@@ -125,6 +125,8 @@ void MiLightHttpServer::handleSystemPost() {
         delay(100);
         ESP.eraseConfig();
         delay(100);
+        SPIFFS.format();
+		    delay(100);
         ESP.restart();
 
         handled = true;

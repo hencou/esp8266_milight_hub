@@ -1,4 +1,27 @@
-# esp8266_milight_hub
+This is a fork of Sidoh's Milight Hub: https://github.com/sidoh/esp8266_milight_hub/
+Instead of using a central hub this project aims to be used behind every wall switch. 
+* RGB_CCT Lights can be controlled with MQTT, HTTP, MiLight remote or a wall push switch.
+* Wall switches will remains working even without WIFI. 
+* Status updates will be send to MQTT.
+* WallSwitch commands are also forwarded to the MQTT command topic to extend the range.
+* ESP8266MQTTMesh is used for the Wifi connection. When the Wifi is out of range, it creates a mesh network automaticaly with an gateway to the MQTT server.
+
+UDP functionality is removed to save space, besides using it to know which deviceId to control.
+The first configured (UDP) deviceId from the settings is used for the wall switches. MQTT commands are only send to light bulbs when the coresponding deviceId is configured as (UDP) deviceId.
+
+Button press functions:
+* Short press: light off
+* Long press: fade light in to max brightness
+* 1 short and long press: change temperature from cold to warm and vice versa
+* 2 short presses: night mode
+* 3 short presses: white mode
+* 4 short presses: pair bulb
+* 5 short presses: unpair bulb
+* 6 short presses: restart ESP
+
+Below the original text of Sidoh's Milight Hub with slight modifications:
+
+# esp8266_milight_hub/switch
 This is a replacement for a Milight/LimitlessLED remote/gateway hosted on an ESP8266. Leverages [Henryk Plötz's awesome reverse-engineering work](https://hackaday.io/project/5888-reverse-engineering-the-milight-on-air-protocol).
 
 [Milight bulbs](https://www.amazon.com/Mi-light-Dimmable-RGBWW-Spotlight-Smart/dp/B01LPRQ4BK/r) are cheap smart bulbs that are controllable with an undocumented 2.4 GHz protocol. In order to control them, you either need a [remote](https://www.amazon.com/Mi-light-Dimmable-RGBWW-Spotlight-Smart/dp/B01LCSALV6/r?th=1) ($13), which allows you to control them directly, or a [WiFi gateway](https://www.amazon.com/BTF-LIGHTING-Mi-Light-WiFi-Bridge-Controller/dp/B01H87DYR8/ref=sr_1_7?ie=UTF8&qid=1485715984&sr=8-7&keywords=milight) ($30), which allows you to control them with a mobile app or a [UDP protocol](http://www.limitlessled.com/dev/).
@@ -26,11 +49,20 @@ Other bulb types might work, but have not been tested. It is also relatively eas
 
 ## What you'll need
 
-1. An ESP8266. I used a NodeMCU.
+1. An ESP8266. I used a Wemos D1 Mini.
 2. A NRF24L01+ module (~$3 on ebay). Alternatively, you can use a LT8900.
 3. Some way to connect the two (7 female/female dupont cables is probably easiest).
+4. 10 uF capacitor between powersupply and NRF24L01+
+5. HLK-PM03 3V3 Power supply 
 
 ## Installing
+
+#### Connecting GPIO
+
+I used a Wemos D1 mini because it's very small to fit behind a wall switch.
+* GPIO D1-D3 as input from wall switch to control groups 1-3
+* Use GPIO D4 as input for a DS18B20 temperature sensor
+* Use GPIO A1 as input for a LDR sensor
 
 #### Connect the NRF24L01+ / LT8900
 
@@ -42,6 +74,18 @@ Both modules are SPI devices and should be connected to the standard SPI pins on
 
 [This guide](https://www.mysensors.org/build/esp8266_gateway) details how to connect an NRF24 to an ESP8266. I used GPIO 16 for CE and GPIO 15 for CSN. These can be configured later.
 
+On a Wemos D1 mini:
+
+|Wemos GPIO |NRF24  |
+|-----------|-------|
+|D0 GPIO16  |CE     |
+|D5 GPIO14  |SCK    |
+|D6 GPIO12  |MISO   |
+|D7 GPIO13  |MOSI   |
+|D8 GPIO15  |CSN    |
+
+* Do not mount the NRF24 and ESP12 antennas against each other. This will cause bad performance and crashes
+
 ##### LT8900
 
 Connect SPI pins (CS, SCK, MOSI, MISO) to appropriate SPI pins on the ESP8266. With default settings, connect RST to GPIO 0, and PKT to GPIO 16.
@@ -51,11 +95,11 @@ Connect SPI pins (CS, SCK, MOSI, MISO) to appropriate SPI pins on the ESP8266. W
 The goal here is to flash your ESP with the firmware. It's really easy to do this with [PlatformIO](http://platformio.org/):
 
 ```
-export ESP_BOARD=nodemcuv2
+export ESP_BOARD=d1_mini
 platformio run -e $ESP_BOARD --target upload
 ```
 
-Of course make sure to substitute `nodemcuv2` with the board that you're using.
+Of course make sure to substitute `d1_mini` with the board that you're using.
 
 **Note that currently you'll need to use the beta version of PlatformIO.**  To install with pip:
 
@@ -63,33 +107,20 @@ Of course make sure to substitute `nodemcuv2` with the board that you're using.
 pip install -U https://github.com/platformio/platformio-core/archive/develop.zip
 ```
 
-You can find pre-compiled firmware images on the [releases](https://github.com/sidoh/esp8266_milight_hub/releases).
-
 #### Configure WiFi
 
-This project uses [WiFiManager](https://github.com/tzapu/WiFiManager) to avoid the need to hardcode AP credentials in the firmware.
-
-When the ESP powers on, you should be able to see a network named "ESPXXXXX", with XXXXX being an identifier for your ESP. Connect to this AP and a window should pop up prompting you to enter WiFi credentials.
-
-The network password is "**milightHub**".
-
-#### Get IP Address
-
-Both mDNS and SSDP are supported.
-
-* OS X - you should be able to navigate to http://milight-hub.local.
-* Windows - you should see a device called "ESP8266 MiLight Gateway" show up in your network explorer.
-* Linux users can install [avahi](http://www.avahi.org/) (`sudo apt-get install avahi-daemon` on Ubuntu), and should then be able to navigate to http://milight-hub.local.
+Configure the Wifi and Mesh settings in the header of main.cpp
 
 #### Use it!
 
-The HTTP endpoints (shown below) will be fully functional at this point. You should also be able to navigate to `http://<ip_of_esp>`, or `http://milight-hub.local` if your client supports mDNS. The UI should look like this:
+The HTTP endpoints (shown below) will be fully functional at this point. You should also be able to navigate to `http://<ip_of_esp>`
+The UI should look like this:
 
 ![Web UI](http://imgur.com/XNNigvL.png)
 
 ## REST endpoints
 
-1. `GET /`. Opens web UI. 
+1. `GET /`. Opens web UI. You'll need to upload it first.
 1. `GET /about`. Return information about current firmware version.
 1. `POST /system`. Post commands in the form `{"comamnd": <command>}`. Currently supports the commands: `restart`.
 1. `POST /firmware`. OTA firmware update.
@@ -232,12 +263,6 @@ You can select which fields should be included in state updates by configuring t
 1. `kelvin / color_temp` - [0, 100] and [153, 370] scales for the same value.  The later's unit is mireds.
 1. `bulb_mode` - what mode the bulb is in: white, rgb, etc.
 1. `color` / `computed_color` - behaves the same when bulb is in rgb mode.  `computed_color` will send RGB = 255,255,255 when in white mode.  This is useful for HomeAssistant where it always expects the color to be set.
-
-## UDP Gateways
-
-You can add an arbitrary number of UDP gateways through the REST API or through the web UI. Each gateway server listens on a port and responds to the standard set of commands supported by the Milight protocol. This should allow you to use one of these with standard Milight integrations (SmartThings, Home Assistant, OpenHAB, etc.).
-
-You can select between versions 5 and 6 of the UDP protocol (documented [here](http://www.limitlessled.com/dev/)). Version 6 has support for the newer RGB+CCT bulbs and also includes response packets, which can theoretically improve reliability. Version 5 has much smaller packets and is probably lower latency.
 
 ## Acknowledgements
 

@@ -1,5 +1,4 @@
 #include <SPI.h>
-#include <WiFiManager.h>
 #include <ArduinoJson.h>
 #include <stdlib.h>
 #include <FS.h>
@@ -11,69 +10,45 @@
 #include <MiLightRemoteConfig.h>
 #include <MiLightHttpServer.h>
 #include <Settings.h>
-#include <MiLightUdpServer.h>
-#include <ESP8266mDNS.h>
-#include <ESP8266SSDP.h>
-#include <MqttClient.h>
 #include <RGBConverter.h>
-#include <MiLightDiscoveryServer.h>
 #include <MiLightClient.h>
 #include <BulbStateUpdater.h>
-
-WiFiManager wifiManager;
+#include <ESP8266MQTTmesh.h>
+#include <WallSwitch.h>
+#include <credentials.h>
 
 Settings settings;
+
+//<Added by HC>
+const char*  inTopic          = "mesh_in/";
+const char*  outTopic         = "mesh_out/";
+const char*  networks[]       = NETWORK_LIST;
+const char*  network_password = NETWORK_PASSWORD;
+const char*  mesh_password    = MESH_PASSWORD;
+const char*  base_ssid        = "MESH-";
+int mesh_port                 = 1884;
+#if ASYNC_TCP_SSL_ENABLED
+const uint8_t *mqtt_fingerprint = MQTT_FINGERPRINT;
+bool         mqtt_secure      = MQTT_SECURE;
+bool         mesh_secure      = MESH_SECURE;
+#endif
+
+char mqtt_server[20];
+int mqtt_port;
+
+ESP8266MQTTMesh *mesh = NULL;
+WallSwitch* wallSwitch = NULL;
+//</Added by HC>
 
 MiLightClient* milightClient = NULL;
 MiLightRadioFactory* radioFactory = NULL;
 MiLightHttpServer *httpServer = NULL;
 MqttClient* mqttClient = NULL;
-MiLightDiscoveryServer* discoveryServer = NULL;
 uint8_t currentRadioType = 0;
 
 // For tracking and managing group state
 GroupStateStore* stateStore = NULL;
 BulbStateUpdater* bulbStateUpdater = NULL;
-
-int numUdpServers = 0;
-MiLightUdpServer** udpServers = NULL;
-WiFiUDP udpSeder;
-
-/**
- * Set up UDP servers (both v5 and v6).  Clean up old ones if necessary.
- */
-void initMilightUdpServers() {
-  if (udpServers) {
-    for (int i = 0; i < numUdpServers; i++) {
-      if (udpServers[i]) {
-        delete udpServers[i];
-      }
-    }
-
-    delete udpServers;
-  }
-
-  udpServers = new MiLightUdpServer*[settings.numGatewayConfigs];
-  numUdpServers = settings.numGatewayConfigs;
-
-  for (size_t i = 0; i < settings.numGatewayConfigs; i++) {
-    GatewayConfig* config = settings.gatewayConfigs[i];
-    MiLightUdpServer* server = MiLightUdpServer::fromVersion(
-      config->protocolVersion,
-      milightClient,
-      config->port,
-      config->deviceId
-    );
-
-    if (server == NULL) {
-      Serial.print(F("Error creating UDP server with protocol version: "));
-      Serial.println(config->protocolVersion);
-    } else {
-      udpServers[i] = server;
-      udpServers[i]->begin();
-    }
-  }
-}
 
 /**
  * Milight RF packet handler.
@@ -91,24 +66,43 @@ void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
     return;
   }
 
-  const MiLightRemoteConfig& remoteConfig =
-    *MiLightRemoteConfig::fromType(bulbId.deviceType);
+  const MiLightRemoteConfig& remoteConfig = *MiLightRemoteConfig::fromType(bulbId.deviceType);
 
-  GroupState& groupState = stateStore->get(bulbId);
-  groupState.patch(result);
-  stateStore->set(bulbId, groupState);
+  //update the status of groups for the first UDP device
+  if (settings.numGatewayConfigs > 0) {
+    if (bulbId.deviceId == settings.gatewayConfigs[0]->deviceId) {
 
-  if (mqttClient) {
-    // Sends the state delta derived from the raw packet
-    char output[200];
-    result.printTo(output);
-    mqttClient->sendUpdate(remoteConfig, bulbId.deviceId, bulbId.groupId, output);
+  		#ifdef DEBUG_PRINTF
+  		Serial.println(F("onPacketSentHandler - update the status of groups for the first UDP device\r\n"));
+  		#endif
 
-    // Sends the entire state
-    bulbStateUpdater->enqueueUpdate(bulbId, groupState);
+      GroupState& groupState = stateStore->get(bulbId);
+      groupState.patch(result);
+      stateStore->set(bulbId, groupState);
+
+  		if (mqttClient) {
+
+  			// Sends the state delta derived from the raw packet
+  			char output[200];
+  			result.printTo(output);
+  			mqttClient->sendUpdate(remoteConfig, bulbId.deviceId, bulbId.groupId, output);
+
+  			// Sends the entire state
+  			bulbStateUpdater->enqueueUpdate(bulbId, groupState);
+  		}
+  	}
   }
 
   httpServer->handlePacketSent(packet, remoteConfig);
+}
+
+/**Added by HC
+ * Callback for the mqttClient to send mqtt publishes to the mesh mqtt
+ */
+void mqttToMesh(const char *topic, const char *msg, const bool retain) {
+  if (settings.mqttServer().length() > 0) {
+    mesh->publish(topic, msg, retain);
+  }
 }
 
 /**
@@ -140,11 +134,24 @@ void handleListen() {
 #endif
         return;
       }
-
       onPacketSentHandler(readPacket, *remoteConfig);
     }
   }
 }
+
+//<added by HC>
+void fromMeshCallback(const char *topic, const char *msg) {
+
+  //only accept milight topics
+  const char *subtopic = topic + strlen(inTopic);
+  if (!strstr(subtopic, "milight")) {
+    return;
+  }
+  if (mqttClient) {
+    mqttClient->fromMeshCallback(subtopic, msg);
+  }
+}
+//</added by HC>
 
 /**
  * Called when MqttClient#update is first being processed.  Stop sending updates
@@ -186,6 +193,28 @@ void applySettings() {
   if (stateStore) {
     delete stateStore;
   }
+  if (wallSwitch) {
+    delete wallSwitch;
+    wallSwitch = NULL;
+  }
+   if (mesh) {
+    //delete mesh;
+    //mesh = NULL;
+    delay(100);
+    ESP.restart();
+  }
+
+  strlcpy(mqtt_server, settings.mqttServer().c_str(), sizeof(mqtt_server));
+  mqtt_port = settings.mqttPort();
+  mesh = ESP8266MQTTMesh::Builder(networks, network_password, mqtt_server, mqtt_port)
+        .setMeshPassword(mesh_password)
+        .setMeshPort(mesh_port)
+        .setBaseSSID(base_ssid)
+        .setTopic(inTopic, outTopic)
+        .buildptr();
+
+  mesh->setCallback(fromMeshCallback);
+  mesh->begin();
 
   radioFactory = MiLightRadioFactory::fromSettings(settings);
 
@@ -209,21 +238,18 @@ void applySettings() {
   milightClient->setResendCount(settings.packetRepeats);
 
   if (settings.mqttServer().length() > 0) {
-    mqttClient = new MqttClient(settings, milightClient);
-    mqttClient->begin();
+    mqttClient = new MqttClient(settings, milightClient, outTopic);
+    //<added by HC>
+    mqttClient->setCallback(mqttToMesh);
+    //</added by HC>
     bulbStateUpdater = new BulbStateUpdater(settings, *mqttClient, *stateStore);
   }
 
-  initMilightUdpServers();
-
-  if (discoveryServer) {
-    delete discoveryServer;
-    discoveryServer = NULL;
-  }
-  if (settings.discoveryPort != 0) {
-    discoveryServer = new MiLightDiscoveryServer(settings);
-    discoveryServer->begin();
-  }
+  //<added by HC>
+  wallSwitch = new WallSwitch(settings, milightClient, stateStore, inTopic, outTopic);
+  wallSwitch->setCallback(mqttToMesh);
+  wallSwitch->begin();
+  //</added by HC>
 }
 
 /**
@@ -239,32 +265,13 @@ bool shouldRestart() {
 
 void setup() {
   Serial.begin(9600);
-  String ssid = "ESP" + String(ESP.getChipId());
-
-  wifiManager.setConfigPortalTimeout(180);
-  wifiManager.autoConnect(ssid.c_str(), "milightHub");
 
   SPIFFS.begin();
   Settings::load(settings);
   applySettings();
 
-  if (! MDNS.begin("milight-hub")) {
-    Serial.println(F("Error setting up MDNS responder"));
-  }
-
-  MDNS.addService("http", "tcp", 80);
-
-  SSDP.setSchemaURL("description.xml");
-  SSDP.setHTTPPort(80);
-  SSDP.setName("ESP8266 MiLight Gateway");
-  SSDP.setSerialNumber(ESP.getChipId());
-  SSDP.setURL("/");
-  SSDP.setDeviceType("upnp:rootdevice");
-  SSDP.begin();
-
   httpServer = new MiLightHttpServer(settings, milightClient, stateStore);
   httpServer->onSettingsSaved(applySettings);
-  httpServer->on("/description.xml", HTTP_GET, []() { SSDP.schema(httpServer->client()); });
   httpServer->begin();
 
   Serial.println(F("Setup complete"));
@@ -274,18 +281,7 @@ void loop() {
   httpServer->handleClient();
 
   if (mqttClient) {
-    mqttClient->handleClient();
     bulbStateUpdater->loop();
-  }
-
-  if (udpServers) {
-    for (size_t i = 0; i < settings.numGatewayConfigs; i++) {
-      udpServers[i]->handleClient();
-    }
-  }
-
-  if (discoveryServer) {
-    discoveryServer->handleClient();
   }
 
   handleListen();
@@ -296,4 +292,8 @@ void loop() {
     Serial.println(F("Auto-restart triggered. Restarting..."));
     ESP.restart();
   }
+
+  //<Addd by HC>
+  wallSwitch->loop(mesh->getStandAloneAP());
+  //</Added by HC>
 }

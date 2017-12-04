@@ -187,11 +187,23 @@ void MiLightClient::modeSpeedUp() {
 }
 
 void MiLightClient::updateStatus(MiLightStatus status, uint8_t groupId) {
+
+  //<added by HC>
+  if (status == OFF) {
+    this->updateBrightness(0);
+  }
+  //</added by HC>
   currentRemote->packetFormatter->updateStatus(status, groupId);
   flushPacket();
 }
 
 void MiLightClient::updateStatus(MiLightStatus status) {
+
+  //<added by HC>
+  if (status == OFF) {
+    this->updateBrightness(0);
+  }
+  //</added by HC>
   currentRemote->packetFormatter->updateStatus(status);
   flushPacket();
 }
