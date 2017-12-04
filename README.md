@@ -109,7 +109,7 @@ pip install -U https://github.com/platformio/platformio-core/archive/develop.zip
 
 #### Configure WiFi
 
-Configure the Wifi and Mesh settings in the header of main.cpp
+Configure the Wifi and Mesh settings in the header of main.cpp and in /src/credentials.h, see /src/credentials.h.example
 
 #### Use it!
 
