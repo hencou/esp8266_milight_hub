@@ -52,7 +52,7 @@ void WallSwitch::loop(bool standAloneAP) {
 //Get button event and act accordingly when UDP gateway configured
   if (settings.numGatewayConfigs > 0) {
 
-    //Startup with all maps off or previous state
+    //Startup with all lamps off
     doLightState();
 
     for (uint8_t i = 0; i < 3; i++) {
@@ -159,7 +159,7 @@ void WallSwitch::checkButton(int buttonPin, uint8_t id) {
       bool status = stateStore->get(bulbId).getState();
 
       //set lamps on when off
-      if (status == OFF) {
+      if (status == OFF || stateStore->get(bulbId).isNightMode()) {
         raisingState[id] = true;
         milightClient->updateStatus(ON);
       }
