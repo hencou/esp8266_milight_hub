@@ -7,3 +7,4 @@
 /dist/*.bin
 .vscode/*
 /src/credentials.h
+.vscode/c_cpp_properties.json

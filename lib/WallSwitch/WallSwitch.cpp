@@ -158,9 +158,18 @@ void WallSwitch::checkButton(int buttonPin, uint8_t id) {
       uint16_t temperature = stateStore->get(bulbId).getMireds();
       bool status = stateStore->get(bulbId).getState();
 
-      //set lamps on when off
-      if (status == OFF || stateStore->get(bulbId).isNightMode()) {
-        raisingState[id] = true;
+      //set lamps on before raising brightness and initialize raising state
+      if (millis_held[id] < 600) {
+        if (raisingState[id] == true)
+          {if (clicks[id] == 1)
+            {if (temperature > 360){raisingState[id] = false;}}
+            else{if (brightness > 90){raisingState[id] = false;}
+          }}
+        else
+          {if (clicks[id] == 1)
+            {if (temperature < 163){raisingState[id] = true;}}
+            else{if (brightness < 10){raisingState[id] = true;}
+          }}
         milightClient->updateStatus(ON);
       }
 
