@@ -169,10 +169,10 @@ void WallSwitch::checkButton(int buttonPin, uint8_t id) {
 
         if (raisingState[id] == true) {
          if (clicks[id] == 1) {
-           if (temperature > 153) {
-               temperature -= 12;
-               if (temperature < 153) {temperature = 153;}
-               milightClient->updateTemperature(Units::miredsToWhiteVal(temperature, 100));
+           if (temperature < 370) {
+             temperature += 12;
+             if (temperature > 370) {temperature = 370;}
+             milightClient->updateTemperature(Units::miredsToWhiteVal(temperature, 100));
            }
          } else {
            if (brightness < 100) {
@@ -183,10 +183,10 @@ void WallSwitch::checkButton(int buttonPin, uint8_t id) {
          }
         } else {
           if (clicks[id] == 1) {
-            if (temperature < 370) {
-              temperature += 12;
-              if (temperature > 370) {temperature = 370;}
-              milightClient->updateTemperature(Units::miredsToWhiteVal(temperature, 100));
+            if (temperature > 153) {
+                temperature -= 12;
+                if (temperature < 153) {temperature = 153;}
+                milightClient->updateTemperature(Units::miredsToWhiteVal(temperature, 100));
             }
           } else {
             if (brightness > 0) {
@@ -200,7 +200,7 @@ void WallSwitch::checkButton(int buttonPin, uint8_t id) {
     }
   }
 
-  //Send command change update MQTT mesh_in/milight to update other devices with same bulbId
+  //Send command change update to MQTT mesh_in/milight to update other devices with same bulbId
   if (buttonDirty[id] == true && currentState[id] == HIGH && (millis() - firstTime[id]) > 1000) {
     buttonDirty[id] = false;
 
@@ -319,7 +319,7 @@ void WallSwitch::doLightState() {
     isStartUp = false;
 
     milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 0);
-    milightClient->updateStatus(OFF);
+    milightClient->updateTemperature(100);
     milightClient->updateStatus(OFF);
   }
 }
