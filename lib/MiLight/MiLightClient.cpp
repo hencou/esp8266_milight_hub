@@ -219,6 +219,10 @@ void MiLightClient::updateColorWhite() {
 }
 
 void MiLightClient::enableNightMode() {
+  //<added by HC>
+  this->updateBrightness(0);
+  //</added by HC>
+  
   currentRemote->packetFormatter->enableNightMode();
   flushPacket();
 }
