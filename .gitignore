@@ -5,3 +5,5 @@
 /web/node_modules
 /web/build
 /dist/*.bin
+.vscode/*
+/src/credentials.h
