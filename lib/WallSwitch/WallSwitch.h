@@ -32,20 +32,25 @@ private:
   DallasTemperature sensors;
 
   void checkButton(int buttonPin, uint8_t id);
+  void doShortClicks(uint8_t id);
+  void doLongClicks(uint8_t id);
   void doDayNight();
   void doLightState();
+  void sendMQTTCommand(uint8_t id);
 
-  int buttonPins[3] = {D1,D2,D3};
-  boolean currentState[4] = {HIGH,HIGH,HIGH,HIGH}; // Current state of the button (LOW is pressed b/c i'm using the pullup resistors)
-  boolean previousState[4] = {HIGH,HIGH,HIGH,HIGH}; // Previous state of the button)
-  boolean raisingState[4] =  {true,true,true,true}; //Dimming direction, must be known to do toggle
-  long millis_held[4] = {0,0,0,0};    // How long the button was held (milliseconds)
-  long millis_repeat[4] = {0,0,0,0};    // store the time from the last brightness/temperature command (milliseconds)
-  unsigned long firstTime[4] = {0,0,0,0}; // how long since the button was first pressed
-  unsigned long timePressLimit[4] = {0,0,0,0}; // timeslot since the button was first pressed, to do doubleclick
-  uint8_t clicks[4] = {0,0,0,0}; //clicks to measure doubleclicks
-  boolean buttonDirty[4] = {false,false,false,false}; //button pressed
-
+  int buttonPins[3] = {D1, D2, D3};
+  boolean currentState[4] = {HIGH, HIGH, HIGH, HIGH};       // Current state of the button (LOW is pressed b/c i'm using the pullup resistors)
+  boolean previousState[4] = {HIGH, HIGH, HIGH, HIGH};      // Previous state of the button)
+  boolean raisingBrightness[4] = {true, true, true, true};  //Dimming direction, must be known to do toggle
+  boolean raisingTemperature[4] = {true, true, true, true}; //Changing temperature direction, must be known to do toggle
+  long millis_held[4] = {0, 0, 0, 0};                       // How long the button was held (milliseconds)
+  long millis_repeat[4] = {0, 0, 0, 0};                     // store the time from the last brightness/temperature command (milliseconds)
+  unsigned long firstTime[4] = {0, 0, 0, 0};                // how long since the button was first pressed
+  unsigned long timePressLimit[4] = {0, 0, 0, 0};           // timeslot since the button was first pressed, to do doubleclick
+  uint8_t shortClicks[4] = {0, 0, 0, 0};
+  //count shortClicks
+  boolean buttonDirty[4] = {false, false, false, false};    //button pressed
+  boolean initLongClick[4] = {false, false, false, false};  //true when long press starts
   unsigned long lastAnalogRead;
   boolean isNight = false;
   boolean isMidNight = false;

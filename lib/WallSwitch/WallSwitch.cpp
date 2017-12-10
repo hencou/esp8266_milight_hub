@@ -1,4 +1,5 @@
 #include <functional>
+#include <stdio.h>
 #include <Arduino.h>
 #include <WallSwitch.h>
 #include <MiLightRadioConfig.h>
@@ -58,11 +59,11 @@ void WallSwitch::loop(bool standAloneAP) {
     for (uint8_t i = 0; i < 3; i++) {
       checkButton(buttonPins[i], i);
     }
-    //Switch lamps with LDR, only in AP mode
+    //Switch lamps on LDR state, only in AP mode
     if (standAloneAP) doDayNight();
   }
 
-  //Publish variables
+  //Publish heap and temperature
   if (millis() - lastMsg > 300000) {
     lastMsg = millis();
     char topic[128];
@@ -86,167 +87,179 @@ void WallSwitch::checkButton(int buttonPin, uint8_t id) {
 
   currentState[id] = digitalRead(buttonPin);
 
-  if (currentState[id] == LOW && previousState[id] == HIGH && (millis() - firstTime[id]) > 200) {
+  if (currentState[id] == LOW && previousState[id] == HIGH && (millis() - firstTime[id]) > 100) {
     firstTime[id] = millis();
     buttonDirty[id] = true;
+    initLongClick[id] = true;
   }
 
   if (currentState[id] == LOW) {
     millis_held[id] = (millis() - firstTime[id]);
   }
 
-  //set raising state for long press, reset clicks after long press
+  //reset clicks after long press and toggle raising states
   if (millis_held[id] > 500 && currentState[id] == HIGH && previousState[id] == LOW) {
-    raisingState[id] = !raisingState[id];
-    clicks[id] = 0;
+    if (shortClicks[id] == 0) {raisingBrightness[id] = !raisingBrightness[id];}
+    if (shortClicks[id] == 1) {raisingTemperature[id] = !raisingTemperature[id];}
+
+    shortClicks[id] = 0;
   }
 
-  //Execute corresponding click commands, and reset click counter
-  if (millis() > timePressLimit[id] && currentState[id] == HIGH) {
-
-    if (clicks[id] == 1) {
-  	  BulbId bulbId(settings.gatewayConfigs[0]->deviceId, id+1, remoteConfig->type);
-
-	    //bool status = stateStore->get(bulbId).getState();
-
-  	  milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, id+1);
-      //milightClient->updateStatus(status ? ON : OFF);
-	    milightClient->updateStatus(OFF);
-    }
-    if (clicks[id] == 2) {
-      milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, id+1);
-      milightClient->enableNightMode();
-
-      //no Off command to mesh_in:
-      buttonDirty[id] = false;
-    }
-    if (clicks[id] == 3) {
-      milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, id+1);
-      milightClient->updateColorWhite();
-    }
-    if (clicks[id] == 4) {
-      milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, id+1);
-      milightClient->pair();
-    }
-    if (clicks[id] == 5) {
-      milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, id+1);
-      milightClient->unpair();
-    }
-  	if (clicks[id] == 6) {
-        ESP.restart();
-    }
-    clicks[id] = 0;
+  if (millis() > timePressLimit[id] && currentState[id] == HIGH && shortClicks[id] != 0) {
+    doShortClicks(id);
+    shortClicks[id] = 0;
   }
 
-  if (millis_held[id] > 40) {
-
-    //Short click
-    if (currentState[id] == HIGH && previousState[id] == LOW && millis_held[id] <= 500) {
-
+  if (millis_held[id] > 50)
+  {
+    if (currentState[id] == HIGH && previousState[id] == LOW && millis_held[id] <= 500)
+    {
       //count short clicks
+      shortClicks[id]++;
       timePressLimit[id] = firstTime[id] + 1000;
-      clicks[id]++;
     }
 
-    //Long press
-    if (millis_held[id] > 500 && currentState[id] == LOW) {
-
-      BulbId bulbId(settings.gatewayConfigs[0]->deviceId, id+1, remoteConfig->type);
-      milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, id+1);
-
-      uint8_t brightness = stateStore->get(bulbId).getBrightness();
-      uint16_t temperature = stateStore->get(bulbId).getMireds();
-      bool status = stateStore->get(bulbId).getState();
-
-      //set lamps on before raising brightness and initialize raising state
-      if (millis_held[id] < 600) {
-        if (raisingState[id] == true)
-          {if (clicks[id] == 1)
-            {if (temperature > 360){raisingState[id] = false;}}
-            else{if (brightness > 90){raisingState[id] = false;}
-          }}
-        else
-          {if (clicks[id] == 1)
-            {if (temperature < 163){raisingState[id] = true;}}
-            else{if (brightness < 10){raisingState[id] = true;}
-          }}
-        milightClient->updateStatus(ON);
-      }
-
-      if (millis() - millis_repeat[id] > 100) {
-        millis_repeat[id] = millis();
-
-        if (raisingState[id] == true) {
-         if (clicks[id] == 1) {
-           if (temperature < 370) {
-             temperature += 12;
-             if (temperature > 370) {temperature = 370;}
-             milightClient->updateTemperature(Units::miredsToWhiteVal(temperature, 100));
-           }
-         } else {
-           if (brightness < 100) {
-             brightness += 8;
-             if (brightness > 100) {brightness = 100;}
-             milightClient->updateBrightness(brightness);
-           }
-         }
-        } else {
-          if (clicks[id] == 1) {
-            if (temperature > 153) {
-                temperature -= 12;
-                if (temperature < 153) {temperature = 153;}
-                milightClient->updateTemperature(Units::miredsToWhiteVal(temperature, 100));
-            }
-          } else {
-            if (brightness > 0) {
-              brightness -= 8;
-              if (brightness < 0) {brightness = 0;}
-              milightClient->updateBrightness(brightness);
-            }
-          }
-        }
-      }
+    if (millis_held[id] > 500 && currentState[id] == LOW && millis() - millis_repeat[id] > 50)
+    {
+      doLongClicks(id);
+      millis_repeat[id] = millis();
     }
   }
 
-  //Send command change update to MQTT mesh_in/milight to update other devices with same bulbId
-  if (buttonDirty[id] == true && currentState[id] == HIGH && (millis() - firstTime[id]) > 1000) {
+  if (buttonDirty[id] == true && currentState[id] == HIGH && (millis() - firstTime[id]) > 1000)
+  {
+    sendMQTTCommand(id);
     buttonDirty[id] = false;
-
-    BulbId bulbId(settings.gatewayConfigs[0]->deviceId, id+1, remoteConfig->type);
-
-    char buffer[200];
-    StaticJsonBuffer<200> jsonBuffer;
-    JsonObject& message = jsonBuffer.createObject();
-
-    GroupState& groupState = stateStore->get(bulbId);
-    groupState.applyState(message, settings.groupStateFields, settings.numGroupStateFields);
-
-    message.printTo(buffer);
-
-    String topic = String(inTopic) + String(settings.mqttTopicPattern);
-
-    String deviceIdStr = String(bulbId.deviceId, 16);
-    deviceIdStr.toUpperCase();
-
-    topic.replace(":device_id", String("0x") + deviceIdStr);
-    topic.replace(":group_id", String(bulbId.groupId));
-    topic.replace(":device_type", remoteConfig->name);
-
-    #ifdef MQTT_DEBUG
-      printf_P(PSTR("WallSwitch - send message to topic: %s : %s\r\n"), topic.c_str(), buffer);
-    #endif
-
-    //send command to mesh_in/milight/xxx/xxx/x
-    callback(topic.c_str(), buffer, false);
   }
 
   previousState[id] = currentState[id];
 }
 
-//handle actions based on LDR state
-void WallSwitch::doDayNight() {
+//handle short clicks
+void WallSwitch::doShortClicks(uint8_t id)
+{
+  BulbId bulbId(settings.gatewayConfigs[0]->deviceId, id + 1, remoteConfig->type);
+  milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, id + 1);
 
+  if (shortClicks[id] == 1)
+  {
+    //milightClient->updateStatus(stateStore->get(bulbId).getState() ? ON : OFF);
+    milightClient->updateStatus(OFF);
+  }
+  if (shortClicks[id] == 2)
+  {
+    milightClient->enableNightMode();
+
+    //no Off command to mesh_in:
+    buttonDirty[id] = false;
+  }
+  if (shortClicks[id] == 3)
+  {
+    milightClient->updateColorWhite();
+  }
+  if (shortClicks[id] == 4)
+  {
+    milightClient->pair();
+  }
+  if (shortClicks[id] == 5)
+  {
+    milightClient->unpair();
+  }
+  if (shortClicks[id] == 6)
+  {
+    ESP.restart();
+  }
+}
+
+//handle long clicks
+void WallSwitch::doLongClicks(uint8_t id)
+{
+  BulbId bulbId(settings.gatewayConfigs[0]->deviceId, id + 1, remoteConfig->type);
+  milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, id + 1);
+
+  //set lamps on before raising brightness and initialize raising state
+  if (initLongClick[id])
+  {
+    milightClient->updateStatus(ON);
+
+    uint8_t brightness = stateStore->get(bulbId).getBrightness();
+    if (brightness > 90) {raisingBrightness[id] = false;}
+    if (brightness < 10) {raisingBrightness[id] = true;}
+
+    uint16_t temperature = stateStore->get(bulbId).getMireds();
+    if (temperature > COLOR_TEMP_MAX_MIREDS - 10) {raisingTemperature[id] = false;}
+    if (temperature < COLOR_TEMP_MIN_MIREDS + 10) {raisingTemperature[id] = true;}
+
+    initLongClick[id] = false;
+  }
+
+  //Brightness
+  if (shortClicks[id] == 0)
+  {
+    uint8_t brightness = stateStore->get(bulbId).getBrightness();
+    if (brightness < 100 && raisingBrightness[id] == true)
+    {
+      brightness += 10;
+      milightClient->updateBrightness(brightness);
+    }
+    if (brightness > 0 && raisingBrightness[id] == false)
+    {
+      brightness -= 10;
+      milightClient->updateBrightness(brightness);
+    }
+  }
+
+  //Temperature
+  if (shortClicks[id] == 1)
+  {
+    uint16_t temperature = stateStore->get(bulbId).getMireds();
+    if (temperature < COLOR_TEMP_MAX_MIREDS && raisingTemperature[id] == true)
+    {
+      temperature += 10;
+      milightClient->updateTemperature(Units::miredsToWhiteVal(temperature, 100));
+    }
+    if (temperature > COLOR_TEMP_MIN_MIREDS && raisingTemperature[id] == false)
+    {
+      temperature -= 10;
+      milightClient->updateTemperature(Units::miredsToWhiteVal(temperature, 100));
+    }
+  }
+}
+
+//Send command update to MQTT mesh_in/milight to update other devices with same bulbId
+void WallSwitch::sendMQTTCommand(uint8_t id)
+{
+  BulbId bulbId(settings.gatewayConfigs[0]->deviceId, id + 1, remoteConfig->type);
+
+  char buffer[200];
+  StaticJsonBuffer<200> jsonBuffer;
+  JsonObject &message = jsonBuffer.createObject();
+
+  GroupState &groupState = stateStore->get(bulbId);
+  groupState.applyState(message, settings.groupStateFields, settings.numGroupStateFields);
+
+  message.printTo(buffer);
+
+  String topic = String(inTopic) + String(settings.mqttTopicPattern);
+
+  String deviceIdStr = String(bulbId.deviceId, 16);
+  deviceIdStr.toUpperCase();
+
+  topic.replace(":device_id", String("0x") + deviceIdStr);
+  topic.replace(":group_id", String(bulbId.groupId));
+  topic.replace(":device_type", remoteConfig->name);
+
+  #ifdef MQTT_DEBUG
+    Serial.printf("WallSwitch - send message to topic: %s : %s\r\n", topic.c_str(), buffer);
+  #endif
+
+  //send command to mesh_in/milight/xxx/xxx/x
+  callback(topic.c_str(), buffer, false);
+}
+
+//handle actions based on LDR state
+void WallSwitch::doDayNight()
+{
   //detect night with LDR on A0 pin
   if (lastAnalogRead + 1000 < millis())
   {
@@ -254,10 +267,10 @@ void WallSwitch::doDayNight() {
     darknessLevel = analogRead(A0);
 
     #ifdef DEBUG_PRINTF
-      Serial.print("darknessLevel: ");
-      Serial.println(darknessLevel);
+      Serial.printf("darknessLevel: %s\r\n", darknessLevel);
     #endif
   }
+
   if (darknessLevel > 350) { //0-1024, 1024 is dark, 0-1.024V, LDR between ADC and GND, and pullup resistor
 
     if (previousDelay == false && isNight == false) {
@@ -303,6 +316,7 @@ void WallSwitch::doDayNight() {
     milightClient->updateTemperature(100);
     milightClient->updateBrightness(50);
   }
+
   if (nightTimer > 10800 && isMidNight == false) { //after 3 hours turn lamps on night mode
     Serial.println(F("Nightmode timeout, turn light in nightmode"));
     isMidNight = true;
@@ -310,12 +324,14 @@ void WallSwitch::doDayNight() {
     milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 4); //outdoor light
     milightClient->enableNightMode();
   }
+
   if (previousNight == true && isNight == false){
     Serial.println(F("LDR triggered day condition, turn lamps off..."));
 
     milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 0); //all lamps off
     milightClient->updateStatus(OFF);
   }
+
   previousNight = isNight;
 }
 
