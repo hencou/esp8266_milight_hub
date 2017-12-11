@@ -119,10 +119,9 @@ void WallSwitch::checkButton(int buttonPin, uint8_t id) {
       timePressLimit[id] = firstTime[id] + 1000;
     }
 
-    if (millis_held[id] > 500 && currentState[id] == LOW && millis() - millis_repeat[id] > 50)
+    if (millis_held[id] > 500 && currentState[id] == LOW)
     {
       doLongClicks(id);
-      millis_repeat[id] = millis();
     }
   }
 
@@ -192,6 +191,11 @@ void WallSwitch::doLongClicks(uint8_t id)
 
     initLongClick[id] = false;
   }
+
+  if (millis() - millis_repeat[id] < 100) {
+    return;
+  }
+  millis_repeat[id] = millis();
 
   //Brightness
   if (shortClicks[id] == 0)
