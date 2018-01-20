@@ -1,13 +1,13 @@
 This is a fork of Sidoh's Milight Hub: https://github.com/sidoh/esp8266_milight_hub/
-Instead of using a central hub this project aims to be used behind every wall switch. 
+Instead of using a central hub this project aims to be used behind every wall switch.
 * RGB_CCT Lights can be controlled with MQTT, HTTP, MiLight remote or a wall push switch.
-* Wall switches will remains working even without WIFI. 
+* Wall switches will remains working even without WIFI.
 * Status updates will be send to MQTT.
 * WallSwitch commands are also forwarded to the MQTT command topic to extend the range.
 * ESP8266MQTTMesh is used for the Wifi connection. When the Wifi is out of range, it creates a mesh network automaticaly with an gateway to the MQTT server.
 
 UDP functionality is removed to save space, besides using it to know which deviceId to control.
-The first configured (UDP) deviceId from the settings is used for the wall switches. MQTT commands are only send to light bulbs when the coresponding deviceId is configured as (UDP) deviceId.
+The first configured (UDP) deviceId from the settings is used for the wall switches. MQTT commands are only send to light bulbs when the corresponding deviceId is configured as (UDP) deviceId.
 
 Button press functions:
 * Short press: light off
@@ -52,17 +52,17 @@ Other bulb types might work, but have not been tested. It is also relatively eas
 1. An ESP8266. I used a Wemos D1 Mini.
 2. A NRF24L01+ module (~$3 on ebay). Alternatively, you can use a LT8900.
 3. Some way to connect the two (7 female/female dupont cables is probably easiest).
-4. 10 uF capacitor between powersupply and NRF24L01+
-5. HLK-PM03 3V3 Power supply 
+4. 10 uF capacitor between power supply and NRF24L01+
+5. HLK-PM03 3V3 Power supply, or HLK-PM01 5V to support RCWL-0516 radar sensor (optional)
 
 ## Installing
 
 #### Connecting GPIO
 
 I used a Wemos D1 mini because it's very small to fit behind a wall switch.
-* GPIO D1-D3 as input from wall switch to control groups 1-3
+* GPIO D1-D3 as input from wall switch to control groups 1-3. Use a push switch or touch sensor like TTP223
 * Use GPIO D4 as input for a DS18B20 temperature sensor
-* Use GPIO A1 as input for a LDR sensor
+* Use GPIO A0 as input for a LDR or RCWL-0516 radar sensor
 
 #### Connect the NRF24L01+ / LT8900
 
