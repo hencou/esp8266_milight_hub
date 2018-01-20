@@ -39,8 +39,8 @@ private:
   void sendMQTTCommand(uint8_t id);
 
   int buttonPins[3] = {D1, D2, D3};
-  boolean currentState[4] = {HIGH, HIGH, HIGH, HIGH};       // Current state of the button (LOW is pressed b/c i'm using the pullup resistors)
-  boolean previousState[4] = {HIGH, HIGH, HIGH, HIGH};      // Previous state of the button)
+  boolean currentState[4] = {LOW, LOW, LOW, LOW};       // Current state of the button (HIGH is pressed)
+  boolean previousState[4] = {LOW, LOW, LOW, LOW};      // Previous state of the button)
   boolean raisingBrightness[4] = {true, true, true, true};  //Dimming direction, must be known to do toggle
   boolean raisingTemperature[4] = {true, true, true, true}; //Changing temperature direction, must be known to do toggle
   long millis_held[4] = {0, 0, 0, 0};                       // How long the button was held (milliseconds)
@@ -61,6 +61,7 @@ private:
   unsigned long delayTimer = 0;
   boolean previousDelay = false;
   boolean isStartUp = true;
+  boolean oldMotion = false;
 
   //MQTT parameterss
   long lastMsg = 0;

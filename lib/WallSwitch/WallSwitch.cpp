@@ -38,7 +38,7 @@ void WallSwitch::begin() {
     remoteConfig = MiLightRemoteConfig::fromType("rgb_cct");
     // Set button input pins
     for (uint8_t i = 0; i < 3; i++) {
-      pinMode(buttonPins[i], INPUT_PULLUP);
+      pinMode(buttonPins[i], INPUT);
     }
 
     //set ADC port to input for LDR
@@ -60,7 +60,26 @@ void WallSwitch::loop(bool standAloneAP) {
       checkButton(buttonPins[i], i);
     }
     //Switch lamps on LDR state, only in AP mode
-    if (standAloneAP) doDayNight();
+    if (standAloneAP) {
+      doDayNight();
+    } else {
+
+      //motion detection, only when connected to mesh or wifi
+      int motionLevel = analogRead(A0);
+      boolean motion = (motionLevel > 1000) ?  true : motion = false;
+      if (motion != oldMotion) {
+
+        char topic[128];
+        snprintf(topic, sizeof(topic), "%sstate/%s/motion", outTopic, WiFi.macAddress().c_str());
+
+        if (motion){
+          callback(topic, "ON", false);
+        } else {
+          callback(topic, "OFF", false);
+        }
+      }
+      oldMotion = motion;
+    }
   }
 
   //Publish heap and temperature
@@ -87,45 +106,45 @@ void WallSwitch::checkButton(int buttonPin, uint8_t id) {
 
   currentState[id] = digitalRead(buttonPin);
 
-  if (currentState[id] == LOW && previousState[id] == HIGH && (millis() - firstTime[id]) > 100) {
+  if (currentState[id] == HIGH && previousState[id] == LOW && (millis() - firstTime[id]) > 100) {
     firstTime[id] = millis();
     buttonDirty[id] = true;
     initLongClick[id] = true;
   }
 
-  if (currentState[id] == LOW) {
+  if (currentState[id] == HIGH) {
     millis_held[id] = (millis() - firstTime[id]);
   }
 
   //reset clicks after long press and toggle raising states
-  if (millis_held[id] > 500 && currentState[id] == HIGH && previousState[id] == LOW) {
+  if (millis_held[id] > 500 && currentState[id] == LOW && previousState[id] == HIGH) {
     if (shortClicks[id] == 0) {raisingBrightness[id] = !raisingBrightness[id];}
     if (shortClicks[id] == 1) {raisingTemperature[id] = !raisingTemperature[id];}
 
     shortClicks[id] = 0;
   }
 
-  if (millis() > timePressLimit[id] && currentState[id] == HIGH && shortClicks[id] != 0) {
+  if (millis() > timePressLimit[id] && currentState[id] == LOW && shortClicks[id] != 0) {
     doShortClicks(id);
     shortClicks[id] = 0;
   }
 
   if (millis_held[id] > 50)
   {
-    if (currentState[id] == HIGH && previousState[id] == LOW && millis_held[id] <= 500)
+    if (currentState[id] == LOW && previousState[id] == HIGH && millis_held[id] <= 500)
     {
       //count short clicks
       shortClicks[id]++;
       timePressLimit[id] = firstTime[id] + 1000;
     }
 
-    if (millis_held[id] > 500 && currentState[id] == LOW)
+    if (millis_held[id] > 500 && currentState[id] == HIGH)
     {
       doLongClicks(id);
     }
   }
 
-  if (buttonDirty[id] == true && currentState[id] == HIGH && (millis() - firstTime[id]) > 1000)
+  if (buttonDirty[id] == true && currentState[id] == LOW && (millis() - firstTime[id]) > 1000)
   {
     sendMQTTCommand(id);
     buttonDirty[id] = false;
@@ -137,7 +156,6 @@ void WallSwitch::checkButton(int buttonPin, uint8_t id) {
 //handle short clicks
 void WallSwitch::doShortClicks(uint8_t id)
 {
-  BulbId bulbId(settings.gatewayConfigs[0]->deviceId, id + 1, remoteConfig->type);
   milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, id + 1);
 
   if (shortClicks[id] == 1)
