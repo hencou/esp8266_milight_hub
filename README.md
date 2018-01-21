@@ -60,7 +60,7 @@ Other bulb types might work, but have not been tested. It is also relatively eas
 #### Connecting GPIO
 
 I used a Wemos D1 mini because it's very small to fit behind a wall switch.
-* GPIO D1-D3 as input from wall switch to control groups 1-3. Use a push switch or touch sensor like TTP223
+* GPIO D1-D3 as input from wall switch to control groups 1-3. LOW is active state. Use a push switch or touch sensor like TTP223, solder jumper A on TTP223 to achieve active LOW output.
 * Use GPIO D4 as input for a DS18B20 temperature sensor
 * Use GPIO A0 as input for a LDR or RCWL-0516 radar sensor
 

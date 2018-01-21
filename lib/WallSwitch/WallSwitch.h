@@ -35,12 +35,13 @@ private:
   void doShortClicks(uint8_t id);
   void doLongClicks(uint8_t id);
   void doDayNight();
+  void detectMotion();
   void doLightState();
   void sendMQTTCommand(uint8_t id);
 
   int buttonPins[3] = {D1, D2, D3};
-  boolean currentState[4] = {LOW, LOW, LOW, LOW};       // Current state of the button (HIGH is pressed)
-  boolean previousState[4] = {LOW, LOW, LOW, LOW};      // Previous state of the button)
+  boolean currentState[4] = {HIGH, HIGH, HIGH, HIGH};       // Current state of the button (LOW is pressed)
+  boolean previousState[4] = {HIGH, HIGH, HIGH, HIGH};      // Previous state of the button)
   boolean raisingBrightness[4] = {true, true, true, true};  //Dimming direction, must be known to do toggle
   boolean raisingTemperature[4] = {true, true, true, true}; //Changing temperature direction, must be known to do toggle
   long millis_held[4] = {0, 0, 0, 0};                       // How long the button was held (milliseconds)
@@ -51,7 +52,7 @@ private:
   //count shortClicks
   boolean buttonDirty[4] = {false, false, false, false};    //button pressed
   boolean initLongClick[4] = {false, false, false, false};  //true when long press starts
-  unsigned long lastAnalogRead;
+  unsigned long lastAnalogRead = 0;
   boolean isNight = false;
   boolean isMidNight = false;
   boolean previousNight = false;
@@ -61,7 +62,10 @@ private:
   unsigned long delayTimer = 0;
   boolean previousDelay = false;
   boolean isStartUp = true;
-  boolean oldMotion = false;
+  int motionLevel = 0;
+  boolean motionState = false;
+  boolean previousMotion = false;
+  unsigned long firstMotion = 0;
 
   //MQTT parameterss
   long lastMsg = 0;
