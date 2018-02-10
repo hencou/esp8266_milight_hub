@@ -110,6 +110,8 @@ void MqttClient::fromMeshCallback(const char *topic, const char *msg) {
 
     milightClient->prepare(remoteConfig, deviceId, bulbId);
     milightClient->update(obj);
+    //sometimes bulbs are missing commands regeardless repeats, send twice:
+    milightClient->update(obj);
     }
   }
 }
