@@ -77,8 +77,12 @@ void WallSwitch::loop(bool standAloneAP) {
     callback(topic, msg, false);
 
     //send the DS18B20 temperature if available
+    int deviceCount = sensors.getDeviceCount();
+    //Serial.print("deviceCount:");
+    //Serial.println(String(deviceCount).c_str());
+
     sensors.requestTemperatures();
-    if (sensors.getDeviceCount() > 0) {
+    if (deviceCount > 0) {
       snprintf(topic, sizeof(topic), "%sstate/%s/temperature", outTopic, WiFi.macAddress().c_str());
       dtostrf(sensors.getTempCByIndex(0),5, 2, msg);
       callback(topic, msg, false);
@@ -243,7 +247,7 @@ void WallSwitch::sendMQTTCommand(uint8_t id)
   JsonObject &message = jsonBuffer.createObject();
 
   GroupState &groupState = stateStore->get(bulbId);
-  groupState.applyState(message, settings.groupStateFields, settings.numGroupStateFields);
+  groupState.applyState(message, bulbId, settings.groupStateFields, settings.numGroupStateFields);
 
   message.printTo(buffer);
 
@@ -356,7 +360,7 @@ void WallSwitch::detectMotion() {
     firstMotion = millis();
   }
 
-  if (motion == true && motionState == false && (millis() - firstMotion) > 300) {
+  if (motion == true && motionState == false && (millis() - firstMotion) > 600) {
     motionState = true;
 
     char topic[128];
@@ -384,6 +388,7 @@ void WallSwitch::doLightState() {
 
     milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 0);
     milightClient->updateTemperature(100);
+	milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 0);
     milightClient->updateStatus(OFF);
   }
 }

@@ -80,3 +80,34 @@ void V2PacketFormatter::format(uint8_t const* packet, char* buffer) {
 uint8_t V2PacketFormatter::groupCommandArg(MiLightStatus status, uint8_t groupId) {
   return GROUP_COMMAND_ARG(status, groupId, numGroups);
 }
+
+// helper method to return a bulb to the prior state
+void V2PacketFormatter::switchMode(GroupState currentState, BulbMode desiredMode) {
+  // revert back to the prior mode
+  switch (desiredMode) {
+    case BulbMode::BULB_MODE_COLOR:
+      updateHue(currentState.getHue());
+      break;
+    case BulbMode::BULB_MODE_NIGHT:
+      enableNightMode();
+      break;
+    case BulbMode::BULB_MODE_SCENE:
+      updateMode(currentState.getMode());
+      break;
+    case BulbMode::BULB_MODE_WHITE:
+      updateColorWhite();
+      break;
+    default:
+      Serial.printf_P(PSTR("V2PacketFormatter::switchMode: Request to switch to unknown mode %d\n"), desiredMode);
+      break;
+  }
+  
+}
+
+uint8_t V2PacketFormatter::tov2scale(uint8_t value, uint8_t endValue, uint8_t interval) {
+  return ((100 - value) * interval) + endValue;
+}
+
+uint8_t V2PacketFormatter::fromv2scale(uint8_t value, uint8_t endValue, uint8_t interval) {
+  return 100 - (((value + (0x100 - endValue))%0x100) / 2);
+}

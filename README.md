@@ -101,11 +101,6 @@ platformio run -e $ESP_BOARD --target upload
 
 Of course make sure to substitute `d1_mini` with the board that you're using.
 
-**Note that currently you'll need to use the beta version of PlatformIO.**  To install with pip:
-
-```
-pip install -U https://github.com/platformio/platformio-core/archive/develop.zip
-```
 
 #### Configure WiFi
 
@@ -116,11 +111,11 @@ Configure the Wifi and Mesh settings in the header of main.cpp and in /src/crede
 The HTTP endpoints (shown below) will be fully functional at this point. You should also be able to navigate to `http://<ip_of_esp>`
 The UI should look like this:
 
-![Web UI](http://imgur.com/XNNigvL.png)
+![Web UI](https://user-images.githubusercontent.com/589893/39412360-0d95ab2e-4bd0-11e8-915c-7fef7ee38761.png)
 
 ## REST endpoints
 
-1. `GET /`. Opens web UI. You'll need to upload it first.
+1. `GET /`. Opens web UI.
 1. `GET /about`. Return information about current firmware version.
 1. `POST /system`. Post commands in the form `{"comamnd": <command>}`. Currently supports the commands: `restart`.
 1. `POST /firmware`. OTA firmware update.
@@ -263,7 +258,18 @@ You can select which fields should be included in state updates by configuring t
 1. `kelvin / color_temp` - [0, 100] and [153, 370] scales for the same value.  The later's unit is mireds.
 1. `bulb_mode` - what mode the bulb is in: white, rgb, etc.
 1. `color` / `computed_color` - behaves the same when bulb is in rgb mode.  `computed_color` will send RGB = 255,255,255 when in white mode.  This is useful for HomeAssistant where it always expects the color to be set.
+1. `device_id` / `device_type` / `group_id` - this information is in the MQTT topic or REST route, but can be included in the payload in the case that processing the topic or route is more difficult.
+
+## UDP Gateways
+
+You can add an arbitrary number of UDP gateways through the REST API or through the web UI. Each gateway server listens on a port and responds to the standard set of commands supported by the Milight protocol. This should allow you to use one of these with standard Milight integrations (SmartThings, Home Assistant, OpenHAB, etc.).
+
+You can select between versions 5 and 6 of the UDP protocol (documented [here](http://www.limitlessled.com/dev/)). Version 6 has support for the newer RGB+CCT bulbs and also includes response packets, which can theoretically improve reliability. Version 5 has much smaller packets and is probably lower latency.
 
 ## Acknowledgements
 
 * @WoodsterDK added support for LT8900 radios.
+* @cmidgley contributed many substantial features to the 1.7 release.
+
+[info-license]:   https://github.com/sidoh/esp8266_milight_hub/blob/master/LICENSE
+[shield-license]: https://img.shields.io/badge/license-MIT-blue.svg

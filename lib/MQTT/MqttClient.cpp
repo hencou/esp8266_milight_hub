@@ -64,8 +64,8 @@ void MqttClient::publish(
 
 void MqttClient::fromMeshCallback(const char *topic, const char *msg) {
   uint16_t deviceId = 0;
-  uint8_t bulbId = 0;
-  const MiLightRemoteConfig* remoteConfig = &FUT092Config;
+  uint8_t groupId = 0;
+  const MiLightRemoteConfig* config = &FUT092Config;
 
   #ifdef MQTT_DEBUG
     printf_P(PSTR("MqttClient - Got message on topic: %s : %s\r\n"), topic, msg);
@@ -83,13 +83,13 @@ void MqttClient::fromMeshCallback(const char *topic, const char *msg) {
   }
 
   if (tokenBindings.hasBinding("group_id")) {
-    bulbId = parseInt<uint16_t>(tokenBindings.get("group_id"));
+    groupId = parseInt<uint16_t>(tokenBindings.get("group_id"));
   }
 
   if (tokenBindings.hasBinding("device_type")) {
-    remoteConfig = MiLightRemoteConfig::fromType(tokenBindings.get("device_type"));
+    config = MiLightRemoteConfig::fromType(tokenBindings.get("device_type"));
 
-    if (remoteConfig == NULL) {
+    if (config == NULL) {
       Serial.println(F("MqttClient - ERROR: could not extract device_type from topic"));
       return;
     }
@@ -105,14 +105,14 @@ void MqttClient::fromMeshCallback(const char *topic, const char *msg) {
     if (deviceId == settings.gatewayConfigs[i]->deviceId) {
 
     #ifdef MQTT_DEBUG
-      printf_P(PSTR("MqttClient - device %04X, group %u\r\n"), deviceId, bulbId);
+      printf_P(PSTR("MqttClient - device %04X, group %u\r\n"), deviceId, groupId);
     #endif
 
-    milightClient->prepare(remoteConfig, deviceId, bulbId);
+    milightClient->prepare(config, deviceId, groupId);
     milightClient->update(obj);
     //sometimes bulbs are missing commands regeardless repeats, send twice:
-    milightClient->prepare(remoteConfig, deviceId, bulbId);
-    milightClient->update(obj);
+    //milightClient->prepare(config, deviceId, groupId);
+    //milightClient->update(obj);
     }
   }
 }

@@ -5,10 +5,11 @@
  */
 const MiLightRemoteConfig* MiLightRemoteConfig::ALL_REMOTES[] = {
   &FUT096Config, // rgbw
-  &FUT091Config, // cct
+  &FUT007Config, // cct
   &FUT092Config, // rgb+cct
   &FUT098Config, // rgb
-  &FUT089Config  // 8-group rgb+cct (b8, fut089)
+  &FUT089Config, // 8-group rgb+cct (b8, fut089)
+  &FUT091Config
 };
 
 const MiLightRemoteConfig* MiLightRemoteConfig::fromType(const String& type) {
@@ -16,8 +17,8 @@ const MiLightRemoteConfig* MiLightRemoteConfig::fromType(const String& type) {
     return &FUT096Config;
   }
 
-  if (type.equalsIgnoreCase("cct") || type.equalsIgnoreCase("fut091")) {
-    return &FUT091Config;
+  if (type.equalsIgnoreCase("cct") || type.equalsIgnoreCase("fut007")) {
+    return &FUT007Config;
   }
 
   if (type.equalsIgnoreCase("rgb_cct") || type.equalsIgnoreCase("fut092")) {
@@ -32,14 +33,20 @@ const MiLightRemoteConfig* MiLightRemoteConfig::fromType(const String& type) {
     return &FUT098Config;
   }
 
-  Serial.println(F("ERROR - tried to fetch remote config for type"));
+  if (type.equalsIgnoreCase("v2_cct") || type.equalsIgnoreCase("fut091")) {
+    return &FUT091Config;
+  }
+
+  Serial.print(F("MiLightRemoteConfig::fromType: ERROR - tried to fetch remote config for type: "));
+  Serial.println(type);
 
   return NULL;
 }
 
 const MiLightRemoteConfig* MiLightRemoteConfig::fromType(MiLightRemoteType type) {
   if (type == REMOTE_TYPE_UNKNOWN || type >= size(ALL_REMOTES)) {
-    Serial.println(F("ERROR - tried to fetch remote config for unknown type"));
+    Serial.print(F("MiLightRemoteConfig::fromType: ERROR - tried to fetch remote config for unknown type: "));
+    Serial.println(type);
     return NULL;
   }
 
@@ -61,7 +68,7 @@ const MiLightRemoteConfig* MiLightRemoteConfig::fromReceivedPacket(
 
   // This can happen under normal circumstances, so not an error condition
 #ifdef DEBUG_PRINTF
-  Serial.println(F("ERROR - tried to fetch remote config for unknown packet"));
+  Serial.println(F("MiLightRemoteConfig::fromReceivedPacket: ERROR - tried to fetch remote config for unknown packet"));
 #endif
 
   return NULL;
@@ -75,11 +82,19 @@ const MiLightRemoteConfig FUT096Config( //rgbw
   4
 );
 
-const MiLightRemoteConfig FUT091Config( //cct
+const MiLightRemoteConfig FUT007Config( //cct
   new CctPacketFormatter(),
   MiLightRadioConfig::ALL_CONFIGS[1],
   REMOTE_TYPE_CCT,
   "cct",
+  4
+);
+
+const MiLightRemoteConfig FUT091Config( //v2 cct
+  new FUT091PacketFormatter(),
+  MiLightRadioConfig::ALL_CONFIGS[2],
+  REMOTE_TYPE_FUT091,
+  "fut091",
   4
 );
 

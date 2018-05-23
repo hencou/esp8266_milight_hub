@@ -19,13 +19,12 @@
 
 Settings settings;
 
-//<Added by HC>
+#define      FIRMWARE_ID        0x1337
+#define      FIRMWARE_VER       "0.1"
 const char*  inTopic          = "mesh_in/";
 const char*  outTopic         = "mesh_out/";
-const char*  networks[]       = NETWORK_LIST;
-const char*  network_password = NETWORK_PASSWORD;
+wifi_conn  networks[]         = NETWORK_LIST;
 const char*  mesh_password    = MESH_PASSWORD;
-const char*  base_ssid        = "MESH-";
 int mesh_port                 = 1884;
 #if ASYNC_TCP_SSL_ENABLED
 const uint8_t *mqtt_fingerprint = MQTT_FINGERPRINT;
@@ -59,7 +58,7 @@ BulbStateUpdater* bulbStateUpdater = NULL;
 void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
   StaticJsonBuffer<200> buffer;
   JsonObject& result = buffer.createObject();
-  BulbId bulbId = config.packetFormatter->parsePacket(packet, result, stateStore);
+  BulbId bulbId = config.packetFormatter->parsePacket(packet, result);
 
   if (&bulbId == &DEFAULT_BULB_ID) {
     Serial.println(F("Skipping packet handler because packet was not decoded"));
@@ -101,7 +100,7 @@ void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
  */
 void mqttToMesh(const char *topic, const char *msg, const bool retain) {
   if (settings.mqttServer().length() > 0) {
-    mesh->publish(topic, msg, retain);
+	mesh->publish("", "", topic, msg, MSG_TYPE_NONE);
   }
 }
 
@@ -206,10 +205,10 @@ void applySettings() {
 
   strlcpy(mqtt_server, settings.mqttServer().c_str(), sizeof(mqtt_server));
   mqtt_port = settings.mqttPort();
-  mesh = ESP8266MQTTMesh::Builder(networks, network_password, mqtt_server, mqtt_port)
+  mesh = ESP8266MQTTMesh::Builder(networks, mqtt_server, mqtt_port)
+        .setVersion(FIRMWARE_VER, FIRMWARE_ID)
         .setMeshPassword(mesh_password)
         .setMeshPort(mesh_port)
-        .setBaseSSID(base_ssid)
         .setTopic(inTopic, outTopic)
         .buildptr();
 
@@ -226,10 +225,8 @@ void applySettings() {
 
   milightClient = new MiLightClient(
     radioFactory,
-    *stateStore,
-    settings.packetRepeatThrottleThreshold,
-    settings.packetRepeatThrottleSensitivity,
-    settings.packetRepeatMinimum
+    stateStore,
+    &settings
   );
   milightClient->begin();
   milightClient->onPacketSent(onPacketSentHandler);
@@ -274,7 +271,7 @@ void setup() {
   httpServer->onSettingsSaved(applySettings);
   httpServer->begin();
 
-  Serial.println(F("Setup complete"));
+  Serial.printf_P(PSTR("Setup complete (version %s)\n"), QUOTE(MILIGHT_HUB_VERSION));
 }
 
 void loop() {
