@@ -82,7 +82,7 @@ uint8_t V2PacketFormatter::groupCommandArg(MiLightStatus status, uint8_t groupId
 }
 
 // helper method to return a bulb to the prior state
-void V2PacketFormatter::switchMode(GroupState currentState, BulbMode desiredMode) {
+void V2PacketFormatter::switchMode(const GroupState& currentState, BulbMode desiredMode) {
   // revert back to the prior mode
   switch (desiredMode) {
     case BulbMode::BULB_MODE_COLOR:
@@ -104,10 +104,27 @@ void V2PacketFormatter::switchMode(GroupState currentState, BulbMode desiredMode
   
 }
 
-uint8_t V2PacketFormatter::tov2scale(uint8_t value, uint8_t endValue, uint8_t interval) {
-  return ((100 - value) * interval) + endValue;
+uint8_t V2PacketFormatter::tov2scale(uint8_t value, uint8_t endValue, uint8_t interval, bool reverse) {
+  if (reverse) {
+    value = 100 - value;
+  }
+
+  return (value * interval) + endValue;
 }
 
-uint8_t V2PacketFormatter::fromv2scale(uint8_t value, uint8_t endValue, uint8_t interval) {
-  return 100 - (((value + (0x100 - endValue))%0x100) / 2);
+uint8_t V2PacketFormatter::fromv2scale(uint8_t value, uint8_t endValue, uint8_t interval, bool reverse, uint8_t buffer) {
+  value = (((value + (0x100 - endValue))%0x100) / interval);
+  if (reverse) {
+    value = 100 - value;
+  }
+  if (value > 100) {
+    // overflow
+    if (value <= (100 + buffer)) {
+      value = 100;
+    // underflow (value is unsigned)
+    } else {
+      value = 0;
+    }
+  }
+  return value;
 }

@@ -79,12 +79,12 @@ void MiLightHttpServer::handleSystemPost() {
         Serial.println(F("Resetting Wifi and then Restarting..."));
         server.send_P(200, TEXT_PLAIN, PSTR("true"));
 
-        delay(100);
+         delay(100);
         ESP.eraseConfig();
-        delay(100);
-        ESP.restart();
+		delay(100);
         SPIFFS.format();
-	    delay(100);
+		delay(100);
+        ESP.restart();
         handled = true;
       }
   }
@@ -316,11 +316,15 @@ void MiLightHttpServer::handleListenGateway(const UrlTokenBindings* bindings) {
   server.send(200, "text/plain", response);
 }
 
-void MiLightHttpServer::sendGroupState(BulbId& bulbId, GroupState &state) {
+void MiLightHttpServer::sendGroupState(BulbId& bulbId, GroupState* state) {
   String body;
   StaticJsonBuffer<200> jsonBuffer;
   JsonObject& obj = jsonBuffer.createObject();
-  state.applyState(obj, bulbId, settings.groupStateFields, settings.numGroupStateFields);
+
+  if (state != NULL) {
+    state->applyState(obj, bulbId, settings.groupStateFields, settings.numGroupStateFields);
+  }
+
   obj.printTo(body);
 
   server.send(200, APPLICATION_JSON, body);
@@ -339,7 +343,7 @@ void MiLightHttpServer::handleGetGroup(const UrlTokenBindings* urlBindings) {
   }
 
   BulbId bulbId(parseInt<uint16_t>(_deviceId), _groupId, _remoteType->type);
-  GroupState& state = stateStore->get(bulbId);
+  GroupState* state = stateStore->get(bulbId);
   sendGroupState(bulbId, stateStore->get(bulbId));
 }
 

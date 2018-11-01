@@ -188,11 +188,11 @@ void WallSwitch::doLongClicks(uint8_t id)
   {
     milightClient->updateStatus(ON);
 
-    uint8_t brightness = stateStore->get(bulbId).getBrightness();
+    uint8_t brightness = stateStore->get(bulbId)->getBrightness();
     if (brightness > 90) {raisingBrightness[id] = false;}
     if (brightness < 10) {raisingBrightness[id] = true;}
 
-    uint16_t temperature = stateStore->get(bulbId).getMireds();
+    uint16_t temperature = stateStore->get(bulbId)->getMireds();
     if (temperature > COLOR_TEMP_MAX_MIREDS - 10) {raisingTemperature[id] = false;}
     if (temperature < COLOR_TEMP_MIN_MIREDS + 10) {raisingTemperature[id] = true;}
 
@@ -207,7 +207,7 @@ void WallSwitch::doLongClicks(uint8_t id)
   //Brightness
   if (shortClicks[id] == 0)
   {
-    uint8_t brightness = stateStore->get(bulbId).getBrightness();
+    uint8_t brightness = stateStore->get(bulbId)->getBrightness();
     if (brightness < 100 && raisingBrightness[id] == true)
     {
       brightness += 10;
@@ -223,7 +223,7 @@ void WallSwitch::doLongClicks(uint8_t id)
   //Temperature
   if (shortClicks[id] == 1)
   {
-    uint16_t temperature = stateStore->get(bulbId).getMireds();
+    uint16_t temperature = stateStore->get(bulbId)->getMireds();
     if (temperature < COLOR_TEMP_MAX_MIREDS && raisingTemperature[id] == true)
     {
       temperature += 10;
@@ -246,8 +246,8 @@ void WallSwitch::sendMQTTCommand(uint8_t id)
   StaticJsonBuffer<200> jsonBuffer;
   JsonObject &message = jsonBuffer.createObject();
 
-  GroupState &groupState = stateStore->get(bulbId);
-  groupState.applyState(message, bulbId, settings.groupStateFields, settings.numGroupStateFields);
+  GroupState* groupState = stateStore->get(bulbId);
+  groupState->applyState(message, bulbId, settings.groupStateFields, settings.numGroupStateFields);
 
   message.printTo(buffer);
 
@@ -360,7 +360,7 @@ void WallSwitch::detectMotion() {
     firstMotion = millis();
   }
 
-  if (motion == true && motionState == false && (millis() - firstMotion) > 600) {
+  if (motion == true && motionState == false && (millis() - firstMotion) > 2100) {
     motionState = true;
 
     char topic[128];

@@ -75,9 +75,9 @@ void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
   		Serial.println(F("onPacketSentHandler - update the status of groups for the first UDP device\r\n"));
   		#endif
 
-      GroupState& groupState = stateStore->get(bulbId);
-      groupState.patch(result);
-      stateStore->set(bulbId, groupState);
+      GroupState* groupState = stateStore->get(bulbId);
+      groupState->patch(result);
+      stateStore->set(bulbId, *groupState);
 
   		if (mqttClient) {
 
@@ -87,7 +87,7 @@ void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
   			mqttClient->sendUpdate(remoteConfig, bulbId.deviceId, bulbId.groupId, output);
 
   			// Sends the entire state
-  			bulbStateUpdater->enqueueUpdate(bulbId, groupState);
+  			bulbStateUpdater->enqueueUpdate(bulbId, *groupState);
   		}
   	}
   }
