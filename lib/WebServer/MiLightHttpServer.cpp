@@ -79,7 +79,7 @@ void MiLightHttpServer::handleSystemPost() {
         Serial.println(F("Resetting Wifi and then Restarting..."));
         server.send_P(200, TEXT_PLAIN, PSTR("true"));
 
-         delay(100);
+        delay(100);
         ESP.eraseConfig();
 		delay(100);
         SPIFFS.format();

@@ -65,7 +65,8 @@ void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
     return;
   }
 
-  const MiLightRemoteConfig& remoteConfig = *MiLightRemoteConfig::fromType(bulbId.deviceType);
+  const MiLightRemoteConfig& remoteConfig =
+  	*MiLightRemoteConfig::fromType(bulbId.deviceType);
 
   //update the status of groups for the first UDP device
   if (settings.numGatewayConfigs > 0) {
@@ -75,9 +76,13 @@ void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
   		Serial.println(F("onPacketSentHandler - update the status of groups for the first UDP device\r\n"));
   		#endif
 
-      GroupState* groupState = stateStore->get(bulbId);
-      groupState->patch(result);
-      stateStore->set(bulbId, *groupState);
+      // update state to reflect changes from this packet
+	    GroupState* groupState = stateStore->get(bulbId);
+
+	    if (groupState != NULL) {
+	      groupState->patch(result);
+	      stateStore->set(bulbId, *groupState);
+	    }
 
   		if (mqttClient) {
 
@@ -87,11 +92,12 @@ void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
   			mqttClient->sendUpdate(remoteConfig, bulbId.deviceId, bulbId.groupId, output);
 
   			// Sends the entire state
-  			bulbStateUpdater->enqueueUpdate(bulbId, *groupState);
-  		}
-  	}
+    		if (groupState != NULL) {
+      		bulbStateUpdater->enqueueUpdate(bulbId, *groupState);
+  		  }
+  	  }
+    }
   }
-
   httpServer->handlePacketSent(packet, remoteConfig);
 }
 
@@ -133,6 +139,8 @@ void handleListen() {
 #endif
         return;
       }
+
+      // update state to reflect this packet
       onPacketSentHandler(readPacket, *remoteConfig);
     }
   }
