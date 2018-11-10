@@ -108,6 +108,7 @@ void MqttClient::fromMeshCallback(const char *topic, const char *msg) {
       printf_P(PSTR("MqttClient - device %04X, group %u\r\n"), deviceId, groupId);
     #endif
 
+    milightClient->setResendCount(settings.packetRepeats * 2);
     milightClient->prepare(config, deviceId, groupId);
     milightClient->update(obj);
     }

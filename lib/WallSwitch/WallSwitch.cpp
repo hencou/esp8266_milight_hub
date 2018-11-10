@@ -145,6 +145,7 @@ void WallSwitch::checkButton(int buttonPin, uint8_t id) {
 //handle short clicks
 void WallSwitch::doShortClicks(uint8_t id)
 {
+  milightClient->setResendCount(settings.packetRepeats * 2);
   milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, id + 1);
 
   if (shortClicks[id] == 1)
@@ -186,7 +187,9 @@ void WallSwitch::doLongClicks(uint8_t id)
   //set lamps on before raising brightness and initialize raising state
   if (initLongClick[id])
   {
+    milightClient->setResendCount(settings.packetRepeats * 2);
     milightClient->updateStatus(ON);
+    milightClient->setResendCount(settings.packetRepeats);
 
     uint8_t brightness = stateStore->get(bulbId)->getBrightness();
     if (brightness > 90) {raisingBrightness[id] = false;}
@@ -311,6 +314,8 @@ void WallSwitch::doDayNight()
     Serial.println(F("LDR triggered night condition, turn lamps on..."));
     nightTime = millis()/1000;
 
+    milightClient->setResendCount(settings.packetRepeats * 2);
+
     milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 1); //zithoek
     milightClient->updateStatus(ON);
     milightClient->updateTemperature(100);
@@ -332,6 +337,7 @@ void WallSwitch::doDayNight()
     Serial.println(F("Nightmode timeout, turn light in nightmode"));
     isMidNight = true;
 
+    milightClient->setResendCount(settings.packetRepeats * 2);
     milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 4); //outdoor light
     milightClient->enableNightMode();
   }
@@ -339,6 +345,7 @@ void WallSwitch::doDayNight()
   if (previousNight == true && isNight == false){
     Serial.println(F("LDR triggered day condition, turn lamps off..."));
 
+    milightClient->setResendCount(settings.packetRepeats * 2);
     milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 0); //all lamps off
     milightClient->updateStatus(OFF);
   }
@@ -386,9 +393,9 @@ void WallSwitch::doLightState() {
 
     isStartUp = false;
 
+    milightClient->setResendCount(settings.packetRepeats * 10);
     milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 0);
     milightClient->updateTemperature(100);
-	milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 0);
     milightClient->updateStatus(OFF);
   }
 }
