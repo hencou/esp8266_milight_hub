@@ -367,7 +367,7 @@ void WallSwitch::detectMotion() {
     firstMotion = millis();
   }
 
-  if (motion == true && motionState == false && (millis() - firstMotion) > 2100) {
+  if (motion == true && motionState == false && (millis() - firstMotion) > 2200) {
     motionState = true;
 
     char topic[128];

@@ -437,6 +437,7 @@ bool GroupState::setBulbMode(BulbMode bulbMode) {
   // As mentioned in isSetBulbMode, NIGHT_MODE is stored separately.
   if (bulbMode == BULB_MODE_NIGHT) {
     setNightMode(true);
+    state.fields._state = 0;
   } else {
     state.fields._isSetBulbMode = 1;
     state.fields._bulbMode = bulbMode;
