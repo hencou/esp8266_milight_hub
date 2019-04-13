@@ -10,9 +10,15 @@
 #include <MiLightRemoteConfig.h>
 #include <MiLightHttpServer.h>
 #include <Settings.h>
+#include <MiLightUdpServer.h>
+#include <ESP8266mDNS.h>
+#include <ESP8266SSDP.h>
+
 #include <RGBConverter.h>
+#include <MiLightDiscoveryServer.h>
 #include <MiLightClient.h>
 #include <BulbStateUpdater.h>
+//#include <LEDStatus.h> //Causes crashing
 #include <ESP8266MQTTmesh.h>
 #include <WallSwitch.h>
 #include <credentials.h>
@@ -35,6 +41,8 @@ bool         mesh_secure      = MESH_SECURE;
 char mqtt_server[20];
 int mqtt_port;
 
+char hostName[20];
+
 ESP8266MQTTMesh *mesh = NULL;
 WallSwitch* wallSwitch = NULL;
 //</Added by HC>
@@ -43,11 +51,52 @@ MiLightClient* milightClient = NULL;
 MiLightRadioFactory* radioFactory = NULL;
 MiLightHttpServer *httpServer = NULL;
 MqttClient* mqttClient = NULL;
+MiLightDiscoveryServer* discoveryServer = NULL;
 uint8_t currentRadioType = 0;
 
 // For tracking and managing group state
 GroupStateStore* stateStore = NULL;
 BulbStateUpdater* bulbStateUpdater = NULL;
+
+int numUdpServers = 0;
+MiLightUdpServer** udpServers = NULL;
+WiFiUDP udpSeder;
+
+/**
+ * Set up UDP servers (both v5 and v6).  Clean up old ones if necessary.
+ */
+ void initMilightUdpServers() {
+  if (udpServers) {
+    for (int i = 0; i < numUdpServers; i++) {
+      if (udpServers[i]) {
+        delete udpServers[i];
+      }
+    }
+
+    delete udpServers;
+  }
+
+  udpServers = new MiLightUdpServer*[settings.numGatewayConfigs];
+  numUdpServers = settings.numGatewayConfigs;
+
+  for (size_t i = 0; i < settings.numGatewayConfigs; i++) {
+    GatewayConfig* config = settings.gatewayConfigs[i];
+    MiLightUdpServer* server = MiLightUdpServer::fromVersion(
+      config->protocolVersion,
+      milightClient,
+      config->port,
+      config->deviceId
+    );
+
+    if (server == NULL) {
+      Serial.print(F("Error creating UDP server with protocol version: "));
+      Serial.println(config->protocolVersion);
+    } else {
+      udpServers[i] = server;
+      udpServers[i]->begin();
+    }
+  }
+}
 
 /**
  * Milight RF packet handler.
@@ -58,6 +107,7 @@ BulbStateUpdater* bulbStateUpdater = NULL;
 void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
   StaticJsonBuffer<200> buffer;
   JsonObject& result = buffer.createObject();
+
   BulbId bulbId = config.packetFormatter->parsePacket(packet, result);
 
   if (&bulbId == &DEFAULT_BULB_ID) {
@@ -66,7 +116,7 @@ void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
   }
 
   const MiLightRemoteConfig& remoteConfig =
-  	*MiLightRemoteConfig::fromType(bulbId.deviceType);
+    *MiLightRemoteConfig::fromType(bulbId.deviceType);
 
   //update the status of groups for the first UDP device
   if (settings.numGatewayConfigs > 0) {
@@ -76,12 +126,17 @@ void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
   		Serial.println(F("onPacketSentHandler - update the status of groups for the first UDP device\r\n"));
   		#endif
 
-      // update state to reflect changes from this packet
-	    GroupState* groupState = stateStore->get(bulbId);
+      	// update state to reflect changes from this packet
+  		GroupState* groupState = stateStore->get(bulbId);
+
+		// pass in previous scratch state as well
+  		const GroupState stateUpdates(groupState, result);
 
 	    if (groupState != NULL) {
-	      groupState->patch(result);
-	      stateStore->set(bulbId, *groupState);
+	      groupState->patch(stateUpdates);
+
+	      // Copy state before setting it to avoid group 0 re-initialization clobbering it
+    	  stateStore->set(bulbId, stateUpdates);
 	    }
 
   		if (mqttClient) {
@@ -98,6 +153,7 @@ void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
   	  }
     }
   }
+
   httpServer->handlePacketSent(packet, remoteConfig);
 }
 
@@ -218,6 +274,7 @@ void applySettings() {
         .setMeshPassword(mesh_password)
         .setMeshPort(mesh_port)
         .setTopic(inTopic, outTopic)
+        .setHostName(hostName)
         .buildptr();
 
   mesh->setCallback(fromMeshCallback);
@@ -250,6 +307,17 @@ void applySettings() {
     bulbStateUpdater = new BulbStateUpdater(settings, *mqttClient, *stateStore);
   }
 
+  initMilightUdpServers();
+
+  if (discoveryServer) {
+    delete discoveryServer;
+    discoveryServer = NULL;
+  }
+  if (settings.discoveryPort != 0) {
+    discoveryServer = new MiLightDiscoveryServer(settings);
+    discoveryServer->begin();
+  }
+
   //<added by HC>
   wallSwitch = new WallSwitch(settings, milightClient, stateStore, inTopic, outTopic);
   wallSwitch->setCallback(mqttToMesh);
@@ -268,15 +336,52 @@ bool shouldRestart() {
   return settings.getAutoRestartPeriod()*60*1000 < millis();
 }
 
+// Called when a group is deleted via the REST API.  Will publish an empty message to
+// the MQTT topic to delete retained state
+void onGroupDeleted(const BulbId& id) {
+  if (mqttClient != NULL) {
+    mqttClient->sendState(
+      *MiLightRemoteConfig::fromType(id.deviceType),
+      id.deviceId,
+      id.groupId,
+      ""
+    );
+  }
+}
+
 void setup() {
   Serial.begin(9600);
 
+  // load up our persistent settings from the file system
   SPIFFS.begin();
   Settings::load(settings);
   applySettings();
 
+  if (settings.hostname.c_str() > 0) {
+    strlcpy(hostName, settings.hostname.c_str(), sizeof(hostName));
+  } else {
+    strlcpy(hostName, String(ESP.getChipId()).c_str(), sizeof(hostName));
+  }
+
+  if (! MDNS.begin(hostName)) {
+    Serial.println(F("Error setting up MDNS responder"));
+  }
+
+  MDNS.addService("http", "tcp", 80);
+
+  //Causes crashing
+  // SSDP.setSchemaURL("description.xml");
+  // SSDP.setHTTPPort(80);
+  // SSDP.setName("test");
+  // SSDP.setSerialNumber(ESP.getChipId());
+  // SSDP.setURL("/");
+  // SSDP.setDeviceType("upnp:rootdevice");
+  // SSDP.begin();
+
   httpServer = new MiLightHttpServer(settings, milightClient, stateStore);
   httpServer->onSettingsSaved(applySettings);
+  httpServer->onGroupDeleted(onGroupDeleted);
+  httpServer->on("/description.xml", HTTP_GET, []() { SSDP.schema(httpServer->client()); });
   httpServer->begin();
 
   Serial.printf_P(PSTR("Setup complete (version %s)\n"), QUOTE(MILIGHT_HUB_VERSION));
@@ -287,6 +392,16 @@ void loop() {
 
   if (mqttClient) {
     bulbStateUpdater->loop();
+  }
+
+  if (udpServers) {
+    for (size_t i = 0; i < settings.numGatewayConfigs; i++) {
+      udpServers[i]->handleClient();
+    }
+  }
+
+  if (discoveryServer) {
+    discoveryServer->handleClient();
   }
 
   handleListen();

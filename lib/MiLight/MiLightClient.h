@@ -54,6 +54,7 @@ public:
   void previousMode();
   void modeSpeedDown();
   void modeSpeedUp();
+  void toggleStatus();
 
   // RGBW methods
   void updateHue(const uint16_t hue);
@@ -89,16 +90,17 @@ protected:
   MiLightRadio* currentRadio;
   const MiLightRemoteConfig* currentRemote;
   const size_t numRadios;
-  GroupStateStore* stateStore;
-  const Settings* settings;
 
   PacketSentHandler packetSentHandler;
   EventHandler updateBeginHandler;
   EventHandler updateEndHandler;
 
+  GroupStateStore* stateStore;
+  const Settings* settings;
+
   // Used to track auto repeat limiting
   unsigned long lastSend;
-  int currentResendCount;
+  uint8_t currentResendCount;
   unsigned int baseResendCount;
 
   // This will be pre-computed, but is simply:

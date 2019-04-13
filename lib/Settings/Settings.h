@@ -2,14 +2,21 @@
 #include <StringStream.h>
 #include <ArduinoJson.h>
 #include <GroupStateField.h>
+#include <RF24PowerLevel.h>
+#include <RF24Channel.h>
 #include <Size.h>
 #include <LEDStatus.h>
+#include <vector>
 
 #ifndef _SETTINGS_H_INCLUDED
 #define _SETTINGS_H_INCLUDED
 
 #define XQUOTE(x) #x
 #define QUOTE(x) XQUOTE(x)
+
+#ifndef FIRMWARE_NAME
+#define FIRMWARE_NAME unknown
+#endif
 
 #ifndef FIRMWARE_VARIANT
 #define FIRMWARE_VARIANT unknown
@@ -38,6 +45,7 @@
 
 #define MINIMUM_RESTART_PERIOD 1
 #define DEFAULT_MQTT_PORT 1883
+#define MAX_IP_ADDR_LEN 15
 
 enum RadioInterfaceType {
   nRF24 = 0,
@@ -72,7 +80,7 @@ public:
     adminUsername(""),
     adminPassword(""),
     // CE and CSN pins from nrf24l01
-    cePin(16),
+    cePin(4),
     csnPin(15),
     resetPin(0),
     ledPin(-2),
@@ -84,7 +92,6 @@ public:
     packetRepeats(50),
     httpRepeatFactor(1),
     listenRepeats(3),
-    _autoRestartPeriod(0),
     discoveryPort(48899),
     stateFlushInterval(10000),
     mqttStateRateLimit(500),
@@ -98,7 +105,12 @@ public:
     ledModeWifiFailed(LEDStatus::LEDMode::On),
     ledModeOperating(LEDStatus::LEDMode::SlowBlip),
     ledModePacket(LEDStatus::LEDMode::Flicker),
-    ledModePacketCount(3)
+    ledModePacketCount(3),
+    hostname("milight-hub"),
+    rf24PowerLevel(RF24PowerLevelHelpers::defaultValue()),
+    rf24Channels(RF24ChannelHelpers::allValues()),
+    rf24ListenChannel(RF24Channel::RF24_LOW),
+    _autoRestartPeriod(0)
   {
     if (groupStateFields == NULL) {
       numGroupStateFields = size(DEFAULT_GROUP_STATE_FIELDS);
@@ -122,6 +134,7 @@ public:
 
   static RadioInterfaceType typeFromString(const String& s);
   static String typeToString(RadioInterfaceType type);
+  static std::vector<RF24Channel> defaultListenChannels();
 
   void save();
   String toJson(const bool prettyPrint = true);
@@ -142,31 +155,41 @@ public:
   RadioInterfaceType radioInterfaceType;
   uint16_t *deviceIds;
   GatewayConfig **gatewayConfigs;
-  size_t numGatewayConfigs;
   size_t numDeviceIds;
+  size_t numGatewayConfigs;
   size_t packetRepeats;
   size_t httpRepeatFactor;
+  uint8_t listenRepeats;
+  uint16_t discoveryPort;
   String _mqttServer;
   String mqttUsername;
   String mqttPassword;
   String mqttTopicPattern;
   String mqttUpdateTopicPattern;
   String mqttStateTopicPattern;
-  GroupStateField *groupStateFields;
-  size_t numGroupStateFields;
-  uint16_t discoveryPort;
-  uint8_t listenRepeats;
+  String mqttLwtTopic;
+  String mqttLwtMessage;
+  String mqttBirthTopic;
   size_t stateFlushInterval;
   size_t mqttStateRateLimit;
-  size_t packetRepeatThrottleSensitivity;
   size_t packetRepeatThrottleThreshold;
+  size_t packetRepeatThrottleSensitivity;
   size_t packetRepeatMinimum;
+  GroupStateField *groupStateFields;
+  size_t numGroupStateFields;
   bool enableAutomaticModeSwitching;
   LEDStatus::LEDMode ledModeWifiConfig;
   LEDStatus::LEDMode ledModeWifiFailed;
   LEDStatus::LEDMode ledModeOperating;
   LEDStatus::LEDMode ledModePacket;
   size_t ledModePacketCount;
+  String hostname;
+  RF24PowerLevel rf24PowerLevel;
+  std::vector<RF24Channel> rf24Channels;
+  RF24Channel rf24ListenChannel;
+  String wifiStaticIP;
+  String wifiStaticIPNetmask;
+  String wifiStaticIPGateway;
 
 
 protected:

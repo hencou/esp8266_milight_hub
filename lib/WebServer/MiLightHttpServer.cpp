@@ -6,6 +6,7 @@
 #include <MiLightRadioConfig.h>
 #include <string.h>
 #include <TokenIterator.h>
+#include <AboutStringHelper.h>
 #include <index.html.gz.h>
 
 void MiLightHttpServer::begin() {
@@ -18,7 +19,7 @@ void MiLightHttpServer::begin() {
   server.onAuthenticated("/settings", HTTP_GET, [this]() { serveSettings(); });
   server.onAuthenticated("/settings", HTTP_PUT, [this]() { handleUpdateSettings(); });
   server.onAuthenticated("/settings", HTTP_POST, [this]() { handleUpdateSettingsPost(); }, handleUpdateFile(SETTINGS_FILE));
-  server.onAuthenticated("/radio_configs", HTTP_GET, [this]() { handleGetRadioConfigs(); });
+  server.onAuthenticated("/remote_configs", HTTP_GET, [this]() { handleGetRadioConfigs(); });
 
   server.onAuthenticated("/gateway_traffic", HTTP_GET, [this]() { handleListenGateway(NULL); });
   server.onPatternAuthenticated("/gateway_traffic/:type", HTTP_GET, [this](const UrlTokenBindings* b) { handleListenGateway(b); });
@@ -26,11 +27,12 @@ void MiLightHttpServer::begin() {
   const char groupPattern[] = "/gateways/:device_id/:type/:group_id";
   server.onPatternAuthenticated(groupPattern, HTTP_PUT, [this](const UrlTokenBindings* b) { handleUpdateGroup(b); });
   server.onPatternAuthenticated(groupPattern, HTTP_POST, [this](const UrlTokenBindings* b) { handleUpdateGroup(b); });
+  server.onPatternAuthenticated(groupPattern, HTTP_DELETE, [this](const UrlTokenBindings* b) { handleDeleteGroup(b); });
   server.onPatternAuthenticated(groupPattern, HTTP_GET, [this](const UrlTokenBindings* b) { handleGetGroup(b); });
 
   server.onPatternAuthenticated("/raw_commands/:type", HTTP_ANY, [this](const UrlTokenBindings* b) { handleSendRaw(b); });
   server.onAuthenticated("/web", HTTP_POST, [this]() { server.send_P(200, TEXT_PLAIN, PSTR("success")); }, handleUpdateFile(WEB_INDEX_FILENAME));
-  server.on("/about", HTTP_GET, [this]() { handleAbout(); });
+  server.onAuthenticated("/about", HTTP_GET, [this]() { handleAbout(); });
   server.onAuthenticated("/system", HTTP_POST, [this]() { handleSystemPost(); });
   server.onAuthenticated("/firmware", HTTP_POST, [this]() { handleFirmwarePost(); }, [this]() { handleFirmwareUpload(); });
 
@@ -81,10 +83,9 @@ void MiLightHttpServer::handleSystemPost() {
 
         delay(100);
         ESP.eraseConfig();
-		delay(100);
-        SPIFFS.format();
-		delay(100);
+        delay(100);
         ESP.restart();
+
         handled = true;
       }
   }
@@ -114,27 +115,31 @@ void MiLightHttpServer::onSettingsSaved(SettingsSavedHandler handler) {
   this->settingsSavedHandler = handler;
 }
 
+void MiLightHttpServer::onGroupDeleted(GroupDeletedHandler handler) {
+  this->groupDeletedHandler = handler;
+}
+
 void MiLightHttpServer::handleAbout() {
-  DynamicJsonBuffer buffer;
-  JsonObject& response = buffer.createObject();
+  // DynamicJsonBuffer buffer;
+  // JsonObject& response = buffer.createObject();
 
-  response["version"] = QUOTE(MILIGHT_HUB_VERSION);
-  response["variant"] = QUOTE(FIRMWARE_VARIANT);
-  response["free_heap"] = ESP.getFreeHeap();
-  response["arduino_version"] = ESP.getCoreVersion();
-  response["reset_reason"] = ESP.getResetReason();
+  // response["version"] = QUOTE(MILIGHT_HUB_VERSION);
+  // response["variant"] = QUOTE(FIRMWARE_VARIANT);
+  // response["free_heap"] = ESP.getFreeHeap();
+  // response["arduino_version"] = ESP.getCoreVersion();
+  // response["reset_reason"] = ESP.getResetReason();
 
-  String body;
-  response.printTo(body);
+  // String body;
+  // response.printTo(body);
 
-  server.send(200, APPLICATION_JSON, body);
+  server.send(200, APPLICATION_JSON, AboutStringHelper::generateAboutString());
 }
 
 void MiLightHttpServer::handleGetRadioConfigs() {
   DynamicJsonBuffer buffer;
   JsonArray& arr = buffer.createArray();
 
-  for (size_t i = 0; i < MiLightRadioConfig::NUM_CONFIGS; i++) {
+  for (size_t i = 0; i < MiLightRemoteConfig::NUM_REMOTES; i++) {
     const MiLightRemoteConfig* config = MiLightRemoteConfig::ALL_REMOTES[i];
     arr.add(config->name);
   }
@@ -213,6 +218,12 @@ void MiLightHttpServer::handleUpdateSettings() {
 
 void MiLightHttpServer::handleUpdateSettingsPost() {
   Settings::load(settings);
+
+  this->applySettings(settings);
+  if (this->settingsSavedHandler) {
+    this->settingsSavedHandler();
+  }
+
   server.send_P(200, TEXT_PLAIN, PSTR("success."));
 }
 
@@ -234,9 +245,12 @@ void MiLightHttpServer::handleFirmwarePost() {
     );
   }
 
-  delay(1000);
-
-  ESP.restart();
+  	delay(1000);
+    ESP.eraseConfig();
+	delay(100);
+    SPIFFS.format();
+	delay(100);
+    ESP.restart();
 }
 
 void MiLightHttpServer::handleFirmwareUpload() {
@@ -262,7 +276,6 @@ void MiLightHttpServer::handleFirmwareUpload() {
 
 
 void MiLightHttpServer::handleListenGateway(const UrlTokenBindings* bindings) {
-  bool available = false;
   bool listenAll = bindings == NULL;
   size_t configIx = 0;
   const MiLightRadioConfig* radioConfig = NULL;
@@ -343,8 +356,29 @@ void MiLightHttpServer::handleGetGroup(const UrlTokenBindings* urlBindings) {
   }
 
   BulbId bulbId(parseInt<uint16_t>(_deviceId), _groupId, _remoteType->type);
-  GroupState* state = stateStore->get(bulbId);
   sendGroupState(bulbId, stateStore->get(bulbId));
+}
+
+void MiLightHttpServer::handleDeleteGroup(const UrlTokenBindings* urlBindings) {
+  const String _deviceId = urlBindings->get("device_id");
+  uint8_t _groupId = atoi(urlBindings->get("group_id"));
+  const MiLightRemoteConfig* _remoteType = MiLightRemoteConfig::fromType(urlBindings->get("type"));
+
+  if (_remoteType == NULL) {
+    char buffer[40];
+    sprintf_P(buffer, PSTR("Unknown device type\n"));
+    server.send(400, TEXT_PLAIN, buffer);
+    return;
+  }
+
+  BulbId bulbId(parseInt<uint16_t>(_deviceId), _groupId, _remoteType->type);
+  stateStore->clear(bulbId);
+
+  server.send_P(200, APPLICATION_JSON, PSTR("true"));
+
+  if (groupDeletedHandler != NULL) {
+    this->groupDeletedHandler(bulbId);
+  }
 }
 
 void MiLightHttpServer::handleUpdateGroup(const UrlTokenBindings* urlBindings) {
@@ -455,6 +489,10 @@ void MiLightHttpServer::handleWsEvent(uint8_t num, WStype_t type, uint8_t *paylo
 
     case WStype_CONNECTED:
       numWsClients++;
+      break;
+
+    default:
+      Serial.printf_P(PSTR("Unhandled websocket event: %d\n"), static_cast<uint8_t>(type));
       break;
   }
 }

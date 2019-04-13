@@ -1,3 +1,23 @@
+$(function() {
+  $(document).on('change', ':file', function() {
+    var input = $(this),
+        label = input.val().replace(/\\/g, '/').replace(/.*\//, '');
+    input.trigger('fileselect', [label]);
+  });
+
+  $(document).ready( function() {
+    $(':file').on('fileselect', function(event, label) {
+
+        var input = $(this).parents('.input-group').find(':text'),
+            log = label;
+
+        if( input.length ) {
+            input.val(log);
+        }
+    });
+  });  
+});
+
 var UNIT_PARAMS = {
   minMireds: 153,
   maxMireds: 370,
@@ -32,6 +52,30 @@ var UI_FIELDS = [ {
     tag: "admin_password",
     friendly: "Password",
     help: "Password for logging into this webpage",
+    type: "string",
+    tab: "tab-wifi"
+  }, {
+    tag: "hostname",
+    friendly: "Hostname",
+    help: "Self-reported hostname to send along with DCHP request",
+    type: "string",
+    tab: "tab-wifi"
+  }, {
+    tag: "wifi_static_ip",
+    friendly: "Static IP Address",
+    help: "Static IP address (leave blank to use DHCP)",
+    type: "string",
+    tab: "tab-wifi"
+  }, {
+    tag: "wifi_static_ip_netmask",
+    friendly: "Static IP Netmask",
+    help: "Netmask to use with Static IP",
+    type: "string",
+    tab: "tab-wifi"
+  }, {
+    tag: "wifi_static_ip_gateway",
+    friendly: "Static IP Gateway Address",
+    help: "IP address to use as gateway when a Static IP is speicifed",
     type: "string",
     tab: "tab-wifi"
   }, {
@@ -121,10 +165,69 @@ var UI_FIELDS = [ {
     type: "string",
     tab: "tab-mqtt"
   }, {
+    tag:   "mqtt_lwt_topic", 
+    friendly: "MQTT LWT Topic",
+    help: "Topic to use for LWT message (leave blank to disable LWT)",
+    type: "string",
+    tab: "tab-mqtt"
+  }, {
+    tag:   "mqtt_lwt_message", 
+    friendly: "MQTT LWT Message",
+    help: "LWT Message - sent when client disconnects uncleanly",
+    type: "string",
+    tab: "tab-mqtt"
+  }, {
+    tag:   "mqtt_birth_topic", 
+    friendly: "MQTT Birth Topic",
+    help: "Birth Topic - JSON blob with system details will be sent to this topic upon connection",
+    type: "string",
+    tab: "tab-mqtt"
+  }, {
     tag:   "radio_interface_type", 
     friendly: "Radio interface type",
     help: "2.4 GHz radio model. Only change this if you know you're not using an NRF24L01!",
-    type: "radio_interface_type",
+    type: "option_buttons",
+    options: {
+      'nRF24': 'nRF24',
+      'LT8900': 'PL1167/LT8900'
+    },
+    tab: "tab-radio"
+  }, {
+    tag:   "rf24_power_level", 
+    friendly: "nRF24 Power Level",
+    help: "Power level for nRF24L01",
+    type: "option_buttons",
+    options: {
+      'MIN': 'Min',
+      'LOW': 'Low',
+      'HIGH': 'High',
+      'MAX': 'Max'
+    },
+    tab: "tab-radio"
+  }, {
+    tag:   "rf24_listen_channel", 
+    friendly: "nRF24 Listen Channel",
+    help: "Which channels to listen for messages on the nRF24",
+    type: "option_buttons",
+    options: {
+      'LOW': 'Min',
+      'MID': 'Mid',
+      'HIGH': 'High'
+    },
+    tab: "tab-radio"
+  }, {
+    tag:   "rf24_channels", 
+    friendly: "nRF24 Send Channels",
+    help: "Which channels to send messages on for the nRF24.  Using fewer channels speeds up sends.",
+    type: "option_buttons",
+    settings: {
+      multiple: true,
+    },
+    options: {
+      'LOW': 'Min',
+      'MID': 'Mid',
+      'HIGH': 'High'
+    },
     tab: "tab-radio"
   }, {
     tag:   "listen_repeats",
@@ -181,7 +284,11 @@ var UI_FIELDS = [ {
     friendly: "Enable automatic mode switching",
     help: "For RGBWW bulbs (using RGB+CCT or FUT089), enables automatic switching between modes in order to affect changes to " +
     "temperature and saturation when otherwise it would not work",
-    type: "enable_automatic_mode_switching",
+    type: "option_buttons",
+    options: {
+      true: 'Enable',
+      false: 'Disable'
+    },
     tab: "tab-radio"
   }, {
     tag:   "led_mode_wifi_config",
@@ -233,7 +340,8 @@ var GROUP_STATE_KEYS = [
   "effect",
   "device_id",
   "group_id",
-  "device_type"
+  "device_type",
+  "oh_color"
 ];
 
 var LED_MODES = [
@@ -251,6 +359,7 @@ var DEFAULT_UDP_PROTOCL_VERSION = 5;
 
 var selectize;
 var sniffing = false;
+var loadingSettings = false;
 
 // don't attempt websocket if we are debugging locally
 if (location.hostname != "") {
@@ -362,12 +471,23 @@ var loadSettings = function() {
     return;
   }
   $.getJSON('/settings', function(val) {
+    loadingSettings = true;
+
     Object.keys(val).forEach(function(k) {
       var field = $('#settings input[name="' + k + '"]');
+      var selectVal = function(selectVal) {
+        field.filter('[value="' + selectVal + '"]').click();
+      };
 
       if (field.length > 0) {
-        if (field.attr('type') === 'radio') {
-          field.filter('[value="' + val[k] + '"]').click();
+        if (field.attr('type') === 'radio' || field.attr('type') === 'checkbox') {
+          if (Array.isArray(val[k])) {
+            val[k].forEach(function(x) {
+              selectVal(x);
+            });
+          } else {
+            selectVal(val[k]);
+          }
         } else {
           field.val(val[k]);
         }
@@ -413,6 +533,8 @@ var loadSettings = function() {
         gatewayForm.append(gatewayServerRow(toHex(v[0]), v[1], v[2]));
       });
     }
+
+    loadingSettings = false;
   });
 };
 
@@ -464,6 +586,32 @@ var saveGatewayConfigs = function() {
       }
     )
   }
+};
+
+var saveDeviceIds = function() {
+  if (!loadingSettings) {
+    var deviceIds = _.map(
+      $('#deviceId')[0].selectize.options,
+      function(option) {
+        return option.value;
+      }
+    );
+
+    $.ajax(
+      "/settings",
+      {
+        method: 'put',
+        contentType: 'application/json',
+        data: JSON.stringify({device_ids: deviceIds})
+      }
+    );
+  }
+};
+
+var deleteDeviceId = function() {
+  selectize.removeOption($(this).data('value'));
+  selectize.refreshOptions();
+  saveDeviceIds();
 };
 
 var deviceIdError = function(v) {
@@ -649,6 +797,22 @@ var startSniffing = function() {
   $("#traffic-sniff").show();
 };
 
+var generateDropdownField = function(fieldName, options, settings) {
+  var s = '<div class="btn-group" id="' + fieldName + '" data-toggle="buttons">';
+  var inputType = settings.multiple ? 'checkbox' : 'radio';
+
+  Object.keys(options).forEach(function(optionValue) {
+    var optionLabel = options[optionValue];
+    s += '<label class="btn btn-secondary">' +
+           '<input type="' + inputType + '" id="' + fieldName + '" name="' + fieldName + '" autocomplete="off" value="' + optionValue + '" /> ' + optionLabel +
+         '</label>';
+  });
+
+  s += '</div>';
+
+  return s;
+};
+
 $(function() {
   $('.radio-option').click(function() {
     $(this).prev().prop('checked', true);
@@ -719,7 +883,6 @@ $(function() {
 
   $('body').on('click', '#add-server-btn', function(e) {
     e.preventDefault();
-    console.log('hi');
     $('#gateway-server-configs').append(gatewayServerRow('', ''));
   });
 
@@ -761,9 +924,37 @@ $(function() {
 
   selectize = $('#deviceId').selectize({
     create: true,
-    sortField: 'text',
+    sortField: 'value',
+    allowEmptyOption: true,
+    render: {
+      option: function(data, escape) {
+        // Mousedown selects an option -- prevent event from bubbling up to select option 
+        // when delete button is clicked.
+        var deleteBtn = $('<span class="selectize-delete"><a href="#"><i class="glyphicon glyphicon-trash"></i></a></span>')
+          .mousedown(function(e) {
+            e.preventDefault();
+            return false;
+          })
+          .click(function(e) {
+            deleteDeviceId.call($(this).closest('.c-selectize-item'));
+            e.preventDefault();
+            return false;
+          });
+
+        var elmt = $('<div class="c-selectize-item"></div>');
+        elmt.append('<span>' + data.text + '</span>');
+        elmt.append(deleteBtn);
+
+        return elmt;
+      }
+    },
     onOptionAdd: function(v, item) {
-      item.value = parseInt(item.value);
+      var unparsedValue = item.value;
+      item.value = parseInt(unparsedValue);
+      selectize.updateOption(unparsedValue, item);
+      selectize.addItem(item.value);
+
+      saveDeviceIds();
     },
     createFilter: function(v) {
       if (! v.match(/^(0x[a-fA-F0-9]{1,4}|[0-9]{1,5})$/)) {
@@ -813,16 +1004,7 @@ $(function() {
 
         elmt += '</div>';
 
-        if (k.type === "radio_interface_type") {
-          elmt += '<div class="btn-group" id="radio_interface_type" data-toggle="buttons">' +
-            '<label class="btn btn-secondary active">' +
-              '<input type="radio" id="nrf24" name="radio_interface_type" autocomplete="off" value="nRF24" /> nRF24' +
-            '</label>'+
-            '<label class="btn btn-secondary">' +
-              '<input type="radio" id="lt8900" name="radio_interface_type" autocomplete="off" value="LT8900" /> PL1167/LT8900' +
-            '</label>' +
-          '</div>';
-        } else if (k.type == 'group_state_fields') {
+        if (k.type == 'group_state_fields') {
           elmt += '<select class="selectpicker select-init" name="group_state_fields" multiple>';
           GROUP_STATE_KEYS.forEach(function(stateKey) {
             elmt += '<option>' + stateKey + '</option>';
@@ -834,15 +1016,8 @@ $(function() {
             elmt += '<option>' + stateKey + '</option>';
           });
           elmt += '</select>';
-        } else if (k.type == 'enable_automatic_mode_switching') {
-          elmt += '<div class="btn-group" id="enable_automatic_mode_switching" data-toggle="buttons">' +
-            '<label class="btn btn-secondary active">' +
-              '<input type="radio" id="enable_mode_switching" name="enable_automatic_mode_switching" autocomplete="off" value="true" /> Enable' +
-            '</label>'+
-            '<label class="btn btn-secondary">' +
-              '<input type="radio" id="disable_mode_switching" name="enable_automatic_mode_switching" autocomplete="off" value="false" /> Disable' +
-            '</label>' +
-          '</div>';
+        } else if (k.type == 'option_buttons') {
+          elmt += generateDropdownField(k.tag, k.options, k.settings || {});
         } else {
           elmt += '<input type="text" class="form-control" name="' + k.tag + '"/>';
         }
@@ -870,8 +1045,9 @@ $(function() {
     if ($('#tab-udp-gateways').hasClass('active')) {
       saveGatewayConfigs();
     } else {
-      var obj = $('#settings')
-        .serializeArray()
+      var obj = $('#settings').serializeArray();
+
+      obj = obj
         .reduce(function(a, x) {
           var val = a[x.name];
 
@@ -884,15 +1060,11 @@ $(function() {
           }
 
           return a;
-        }, {});
-
-      // pretty hacky. whatever.
-      obj.device_ids = _.map(
-        $('.selectize-control .option'),
-        function(x) {
-          return $(x).data('value')
-        }
-      );
+        }, 
+        {
+          // Make sure the value is always an array, even if a single item is selected
+          rf24_channels: []
+        });
 
       // Make sure we're submitting a value for group_state_fields (will be empty
       // if no values were selected).
@@ -935,4 +1107,24 @@ $(function() {
 
   loadSettings();
   updateModeOptions();
+});
+
+$(function() {
+  $(document).on('change', ':file', function() {
+    var input = $(this),
+        label = input.val().replace(/\\/g, '/').replace(/.*\//, '');
+    input.trigger('fileselect', [label]);
+  });
+
+  $(document).ready( function() {
+    $(':file').on('fileselect', function(event, label) {
+
+        var input = $(this).parents('.input-group').find(':text'),
+            log = label;
+
+        if( input.length ) {
+            input.val(log);
+        }
+    });
+  });  
 });

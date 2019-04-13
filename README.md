@@ -24,7 +24,9 @@ Below the original text of Sidoh's Milight Hub with slight modifications:
 # esp8266_milight_hub/switch
 This is a replacement for a Milight/LimitlessLED remote/gateway hosted on an ESP8266. Leverages [Henryk Plötz's awesome reverse-engineering work](https://hackaday.io/project/5888-reverse-engineering-the-milight-on-air-protocol).
 
-[Milight bulbs](https://www.amazon.com/Mi-light-Dimmable-RGBWW-Spotlight-Smart/dp/B01LPRQ4BK/r) are cheap smart bulbs that are controllable with an undocumented 2.4 GHz protocol. In order to control them, you either need a [remote](https://www.amazon.com/Mi-light-Dimmable-RGBWW-Spotlight-Smart/dp/B01LCSALV6/r?th=1) ($13), which allows you to control them directly, or a [WiFi gateway](https://www.amazon.com/BTF-LIGHTING-Mi-Light-WiFi-Bridge-Controller/dp/B01H87DYR8/ref=sr_1_7?ie=UTF8&qid=1485715984&sr=8-7&keywords=milight) ($30), which allows you to control them with a mobile app or a [UDP protocol](http://www.limitlessled.com/dev/).
+[Milight bulbs](https://www.amazon.com/Mi-light-Dimmable-RGBWW-Spotlight-Smart/dp/B01LPRQ4BK/r) are cheap smart bulbs that are controllable with an undocumented 2.4 GHz protocol. In order to control them, you either need a [remote](https://www.amazon.com/Mi-light-Dimmable-RGBWW-Spotlight-Smart/dp/B01LCSALV6/r?th=1) ($13), which allows you to control them directly, or a [WiFi gateway](http://futlight.com/productlist.aspx?typeid=125) ($30), which allows you to control them with a mobile app or a [UDP protocol](https://github.com/Fantasmos/LimitlessLED-DevAPI).
+
+This project is a replacement for the wifi gateway.
 
 [This guide](http://blog.christophermullins.com/2017/02/11/milight-wifi-gateway-emulator-on-an-esp8266/) on my blog details setting one of these up.
 
@@ -78,7 +80,10 @@ Both modules are SPI devices and should be connected to the standard SPI pins on
 
 ##### NRF24L01+
 
-[This guide](https://www.mysensors.org/build/connect_radio#nrf24l01+-&-esp8266) details how to connect an NRF24 to an ESP8266. I used GPIO 16 for CE and GPIO 15 for CSN instead. These can be configured later.
+[This guide](https://www.mysensors.org/build/connect_radio#nrf24l01+-&-esp8266) details how to connect an NRF24 to an ESP8266. By default GPIO 4 for CE and GPIO 15 for CSN are used, but these can be configured late in the Web GUI under Settings -> Setup.
+
+<img src="https://user-images.githubusercontent.com/40266/47967518-67556f00-e05e-11e8-857d-1173a9da955c.png" align="left" width="32%" /> 
+<img src="https://user-images.githubusercontent.com/40266/47967520-691f3280-e05e-11e8-838a-83706df2edb0.png" align="left" width="22%" />
 
 On a Wemos D1 mini:
 
@@ -92,9 +97,11 @@ On a Wemos D1 mini:
 
 * Do not mount the NRF24 and ESP12 antennas against each other. This will cause bad performance and crashes
 
+_Image source: [MySensors.org](https://mysensors.org)_
+
 ##### LT8900
 
-Connect SPI pins (CS, SCK, MOSI, MISO) to appropriate SPI pins on the ESP8266. With default settings, connect RST to GPIO 0, and PKT to GPIO 16.
+Connect SPI pins (CE, SCK, MOSI, MISO) to appropriate SPI pins on the ESP8266. With default settings, connect RST to GPIO 0, PKT to GPIO 16, CE to GPIO 4, and CSN to GPIO 15.  Make sure to properly configure these if using non-default pinouts.
 
 #### Setting up the ESP
 
@@ -114,8 +121,7 @@ Configure the Wifi and Mesh settings in the header of main.cpp and in /src/crede
 
 #### Use it!
 
-The HTTP endpoints (shown below) will be fully functional at this point. You should also be able to navigate to `http://<ip_of_esp>`
-The UI should look like this:
+The HTTP endpoints (shown below) will be fully functional at this point. You should also be able to navigate to `http://<ip_of_esp>`, or `http://milight-hub.local` if your client supports mDNS. The UI should look like this:
 
 ![Web UI](https://user-images.githubusercontent.com/589893/39412360-0d95ab2e-4bd0-11e8-915c-7fef7ee38761.png)
 
@@ -127,10 +133,11 @@ The UI should look like this:
 1. `POST /firmware`. OTA firmware update.
 1. `GET /settings`. Gets current settings as JSON.
 1. `PUT /settings`. Patches settings (e.g., doesn't overwrite keys that aren't present). Accepts a JSON blob in the body.
-1. `GET /radio_configs`. Get a list of supported radio configs (aka `device_type`s).
+1. `GET /remote_configs`. Get a list of supported remote configs (aka `device_type`s).
 1. `GET /gateway_traffic(/:device_type)?`. Starts an HTTP long poll. Returns any Milight traffic it hears. Useful if you need to know what your Milight gateway/remote ID is. Since protocols for RGBW/CCT are different, specify one of `rgbw`, `cct`, or `rgb_cct` as `:device_type.  The path `/gateway_traffic` without a `:device_type` will sniff for all protocols simultaneously.
 1. `PUT /gateways/:device_id/:device_type/:group_id`. Controls or sends commands to `:group_id` from `:device_id`. Accepts a JSON blob. The schema is documented below in the _Bulb commands_ section.
 1. `GET /gateways/:device_id/:device_type/:group_id`. Returns a JSON blob describing the state of the the provided group.
+1. `DELETE /gateways/:device_id/:device_type/:group_id`. Deletes state associated with the provided group.
 1. `POST /raw_commands/:device_type`. Sends a raw RF packet with radio configs associated with `:device_type`. Example body:
     ```
     {"packet": "01 02 03 04 05 06 07 08 09", "num_repeats": 10}
@@ -159,9 +166,10 @@ Route (5) supports these commands. Note that each bulb type has support for a di
    * `temperature_down`. Turns down the white temperature. Not all bulbs with adjustable white temperature support this command.
    * `temperature_up`. Turns up the white temperature. Not all bulbs with adjustable white temperature support this command.
    * `night_mode`. Enable "night mode", which is minimum brightness and bulbs only responding to on/off commands.
+   * `toggle`. Toggle on/off state.
 1. `commands`. An array containing any number of the above commands (including repeats).
 
-The following redundant commands are supported for the sake of compatibility with HomeAssistant's [`mqtt_json`](https://home-assistant.io/components/light.mqtt_json/) light platform:
+The following redundant commands are supported for the sake of compatibility with HomeAssistant's [`mqtt`](https://home-assistant.io/components/light.mqtt/) light platform with the `json` schema:
 
 1. `color`. Hash containing RGB color. All keys for r, g, and b should be present. For example, `{"r":255,"g":200,"b":255}`.
 1. `color_temp`. Controls white temperature. Value is in [mireds](https://en.wikipedia.org/wiki/Mired). Milight bulbs are in the range 153-370 mireds (2700K-6500K).
@@ -175,14 +183,14 @@ If you'd like to control bulbs in all groups paired with a particular device ID,
 Turn on group 2 for device ID 0xCD86, set hue to 100, and brightness to 50%:
 
 ```
-$ curl -X PUT -H 'Content-Type: applicaiton/json' -d '{"status":"on","hue":100,"level":50}' http://esp8266/gateways/0xCD86/rgbw/2
+$ curl -X PUT -H 'Content-Type: application/json' -d '{"status":"on","hue":100,"level":50}' http://esp8266/gateways/0xCD86/rgbw/2
 true%
 ```
 
 Set color to white (disable RGB):
 
 ```
-$ curl -X PUT -H 'Content-Type: applicaiton/json' -d '{"command":"set_white"}' -X PUT http://esp8266/gateways/0xCD86/rgbw/2
+$ curl -X PUT -H 'Content-Type: application/json' -d '{"command":"set_white"}' -X PUT http://esp8266/gateways/0xCD86/rgbw/2
 true%
 ```
 
@@ -264,6 +272,7 @@ You can select which fields should be included in state updates by configuring t
 1. `kelvin / color_temp` - [0, 100] and [153, 370] scales for the same value.  The later's unit is mireds.
 1. `bulb_mode` - what mode the bulb is in: white, rgb, etc.
 1. `color` / `computed_color` - behaves the same when bulb is in rgb mode.  `computed_color` will send RGB = 255,255,255 when in white mode.  This is useful for HomeAssistant where it always expects the color to be set.
+1. `oh_color` - same as `color` with a format compatible with [OpenHAB's colorRGB channel type](https://www.openhab.org/addons/bindings/mqtt.generic/#channel-type-colorrgb-colorhsb).
 1. `device_id` / `device_type` / `group_id` - this information is in the MQTT topic or REST route, but can be included in the payload in the case that processing the topic or route is more difficult.
 
 ## UDP Gateways
@@ -271,6 +280,24 @@ You can select which fields should be included in state updates by configuring t
 You can add an arbitrary number of UDP gateways through the REST API or through the web UI. Each gateway server listens on a port and responds to the standard set of commands supported by the Milight protocol. This should allow you to use one of these with standard Milight integrations (SmartThings, Home Assistant, OpenHAB, etc.).
 
 You can select between versions 5 and 6 of the UDP protocol (documented [here](http://www.limitlessled.com/dev/)). Version 6 has support for the newer RGB+CCT bulbs and also includes response packets, which can theoretically improve reliability. Version 5 has much smaller packets and is probably lower latency.
+
+## Development
+
+This project is developed and built using [PlatformIO](https://platformio.org/).
+
+#### Running tests
+
+On-board unit tests are available using PlatformIO.  Run unit tests with this command:
+
+```
+pio test -e d1_mini
+```
+
+substituting `d1_mini` for the environment of your choice.
+
+#### Running integration tests
+
+A remote integration test suite built using rspec is available under [`./test/remote`](test/remote).
 
 ## Acknowledgements
 

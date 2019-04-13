@@ -10,6 +10,7 @@
 #define MAX_DOWNLOAD_ATTEMPTS 3
 
 typedef std::function<void(void)> SettingsSavedHandler;
+typedef std::function<void(const BulbId& id)> GroupDeletedHandler;
 
 const char TEXT_PLAIN[] PROGMEM = "text/plain";
 const char APPLICATION_JSON[] = "application/json";
@@ -30,6 +31,7 @@ public:
   void begin();
   void handleClient();
   void onSettingsSaved(SettingsSavedHandler handler);
+  void onGroupDeleted(GroupDeletedHandler handler);
   void on(const char* path, HTTPMethod method, ESP8266WebServer::THandlerFunction handler);
   void handlePacketSent(uint8_t* packet, const MiLightRemoteConfig& config);
   WiFiClient client();
@@ -57,6 +59,7 @@ protected:
   void handleListenGateway(const UrlTokenBindings* urlBindings);
   void handleSendRaw(const UrlTokenBindings* urlBindings);
   void handleUpdateGroup(const UrlTokenBindings* urlBindings);
+  void handleDeleteGroup(const UrlTokenBindings* urlBindings);
   void handleGetGroup(const UrlTokenBindings* urlBindings);
 
   void handleRequest(const JsonObject& request);
@@ -66,11 +69,12 @@ protected:
 
   WebServer server;
   WebSocketsServer wsServer;
-  Settings& settings;
+  size_t numWsClients;
   MiLightClient*& milightClient;
+  Settings& settings;
   GroupStateStore*& stateStore;
   SettingsSavedHandler settingsSavedHandler;
-  size_t numWsClients;
+  GroupDeletedHandler groupDeletedHandler;
   ESP8266WebServer::THandlerFunction _handleRootPage;
 
 };

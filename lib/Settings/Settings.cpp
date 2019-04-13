@@ -3,6 +3,7 @@
 #include <FS.h>
 #include <IntParsing.h>
 #include <algorithm>
+#include <JsonHelpers.h>
 
 #define PORT_POSITION(s) ( s.indexOf(':') )
 
@@ -97,6 +98,9 @@ void Settings::patch(JsonObject& parsedSettings) {
     this->setIfPresent(parsedSettings, "mqtt_topic_pattern", mqttTopicPattern);
     this->setIfPresent(parsedSettings, "mqtt_update_topic_pattern", mqttUpdateTopicPattern);
     this->setIfPresent(parsedSettings, "mqtt_state_topic_pattern", mqttStateTopicPattern);
+    this->setIfPresent(parsedSettings, "mqtt_lwt_topic", mqttLwtTopic);
+    this->setIfPresent(parsedSettings, "mqtt_lwt_message", mqttLwtMessage);
+    this->setIfPresent(parsedSettings, "mqtt_birth_topic", mqttBirthTopic);
     this->setIfPresent(parsedSettings, "discovery_port", discoveryPort);
     this->setIfPresent(parsedSettings, "listen_repeats", listenRepeats);
     this->setIfPresent(parsedSettings, "state_flush_interval", stateFlushInterval);
@@ -106,6 +110,23 @@ void Settings::patch(JsonObject& parsedSettings) {
     this->setIfPresent(parsedSettings, "packet_repeat_minimum", packetRepeatMinimum);
     this->setIfPresent(parsedSettings, "enable_automatic_mode_switching", enableAutomaticModeSwitching);
     this->setIfPresent(parsedSettings, "led_mode_packet_count", ledModePacketCount);
+    this->setIfPresent(parsedSettings, "hostname", hostname);
+    this->setIfPresent(parsedSettings, "wifi_static_ip", wifiStaticIP);
+    this->setIfPresent(parsedSettings, "wifi_static_ip_gateway", wifiStaticIPGateway);
+    this->setIfPresent(parsedSettings, "wifi_static_ip_netmask", wifiStaticIPNetmask);
+
+    if (parsedSettings.containsKey("rf24_channels")) {
+      JsonArray& arr = parsedSettings["rf24_channels"];
+      rf24Channels = JsonHelpers::jsonArrToVector<RF24Channel>(arr, RF24ChannelHelpers::valueFromName);
+    }
+
+    if (parsedSettings.containsKey("rf24_listen_channel")) {
+      this->rf24ListenChannel = RF24ChannelHelpers::valueFromName(parsedSettings["rf24_listen_channel"]);
+    }
+
+    if (parsedSettings.containsKey("rf24_power_level")) {
+      this->rf24PowerLevel = RF24PowerLevelHelpers::valueFromName(parsedSettings["rf24_power_level"]);
+    }
 
     if (parsedSettings.containsKey("led_mode_wifi_config")) {
       this->ledModeWifiConfig = LEDStatus::stringToLEDMode(parsedSettings["led_mode_wifi_config"]);
@@ -144,6 +165,9 @@ void Settings::patch(JsonObject& parsedSettings) {
 
 void Settings::load(Settings& settings) {
   if (SPIFFS.exists(SETTINGS_FILE)) {
+    // Clear in-memory settings
+    settings = Settings();
+
     File f = SPIFFS.open(SETTINGS_FILE, "r");
     String settingsContents = f.readStringUntil(SETTINGS_TERMINATOR);
     f.close();
@@ -192,6 +216,9 @@ void Settings::serialize(Stream& stream, const bool prettyPrint) {
   root["mqtt_topic_pattern"] = this->mqttTopicPattern;
   root["mqtt_update_topic_pattern"] = this->mqttUpdateTopicPattern;
   root["mqtt_state_topic_pattern"] = this->mqttStateTopicPattern;
+  root["mqtt_lwt_topic"] = this->mqttLwtTopic;
+  root["mqtt_lwt_message"] = this->mqttLwtMessage;
+  root["mqtt_birth_topic"] = this->mqttBirthTopic;
   root["discovery_port"] = this->discoveryPort;
   root["listen_repeats"] = this->listenRepeats;
   root["state_flush_interval"] = this->stateFlushInterval;
@@ -205,6 +232,16 @@ void Settings::serialize(Stream& stream, const bool prettyPrint) {
   root["led_mode_operating"] = LEDStatus::LEDModeToString(this->ledModeOperating);
   root["led_mode_packet"] = LEDStatus::LEDModeToString(this->ledModePacket);
   root["led_mode_packet_count"] = this->ledModePacketCount;
+  root["hostname"] = this->hostname;
+  root["rf24_power_level"] = RF24PowerLevelHelpers::nameFromValue(this->rf24PowerLevel);
+  root["rf24_listen_channel"] = RF24ChannelHelpers::nameFromValue(rf24ListenChannel);
+  root["wifi_static_ip"] = this->wifiStaticIP;
+  root["wifi_static_ip_gateway"] = this->wifiStaticIPGateway;
+  root["wifi_static_ip_netmask"] = this->wifiStaticIPNetmask;
+
+  JsonArray& channelArr = jsonBuffer.createArray();
+  JsonHelpers::vectorToJsonArr<RF24Channel>(channelArr, rf24Channels, RF24ChannelHelpers::nameFromValue);
+  root["rf24_channels"] = channelArr;
 
   if (this->deviceIds) {
     JsonArray& arr = jsonBuffer.createArray();

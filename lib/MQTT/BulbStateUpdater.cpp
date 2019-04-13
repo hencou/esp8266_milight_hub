@@ -18,24 +18,10 @@ void BulbStateUpdater::disable() {
 
 void BulbStateUpdater::enqueueUpdate(BulbId bulbId, GroupState& groupState) {
   // If can flush immediately, do so (avoids lookup of group state later).
-  if (bulbId.groupId == 0) {
-    const MiLightRemoteConfig* remote = MiLightRemoteConfig::fromType(bulbId.deviceType);
-    BulbId individualBulb(bulbId);
-
-    for (size_t i = 1; i <= remote->numGroups; i++) {
-      individualBulb.groupId = i;
-      if (canFlush()) {
-        flushGroup(individualBulb, groupState);
-      } else {
-        staleGroups.push(individualBulb);
-      }
-    }
+  if (canFlush()) {
+    flushGroup(bulbId, groupState);
   } else {
-    if (canFlush()) {
-      flushGroup(bulbId, groupState);
-    } else {
-      staleGroups.push(bulbId);
-    }
+    staleGroups.push(bulbId);
   }
 }
 

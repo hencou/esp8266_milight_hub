@@ -27,7 +27,7 @@ private:
   MiLightClient*& milightClient;
   Settings& settings;
   const char* outTopic;
-
+  void sendBirthMessage();
   void publish(
     const String& topic,
     const MiLightRemoteConfig& remoteConfig,

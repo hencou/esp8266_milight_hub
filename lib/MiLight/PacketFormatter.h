@@ -29,7 +29,7 @@ struct PacketStream {
 
 class PacketFormatter {
 public:
-  PacketFormatter(const size_t packetLength, const size_t maxPackets = 1);
+  PacketFormatter(const MiLightRemoteType deviceType, const size_t packetLength, const size_t maxPackets = 1);
 
   // Ideally these would be constructor parameters.  We could accomplish this by
   // wrapping PacketFormaters in a factory, as Settings and StateStore are not
@@ -43,6 +43,7 @@ public:
   virtual bool canHandle(const uint8_t* packet, const size_t len);
 
   void updateStatus(MiLightStatus status);
+  void toggleStatus();
   virtual void updateStatus(MiLightStatus status, uint8_t groupId);
   virtual void command(uint8_t command, uint8_t arg);
 
@@ -89,13 +90,14 @@ public:
   size_t getPacketLength() const;
 
 protected:
-  uint8_t* currentPacket;
+  const MiLightRemoteType deviceType;
   size_t packetLength;
+  size_t numPackets;
+  uint8_t* currentPacket;
+  bool held;
   uint16_t deviceId;
   uint8_t groupId;
   uint8_t sequenceNum;
-  size_t numPackets;
-  bool held;
   PacketStream packetStream;
   GroupStateStore* stateStore = NULL;
   const Settings* settings = NULL;

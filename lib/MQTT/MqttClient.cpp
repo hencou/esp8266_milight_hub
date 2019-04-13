@@ -5,7 +5,7 @@
 #include <IntParsing.h>
 #include <ArduinoJson.h>
 #include <MiLightRadioConfig.h>
-#include <Settings.h>
+#include <AboutStringHelper.h>
 
 MqttClient::MqttClient(Settings& settings, MiLightClient*& milightClient, const char* outTopic)
   : milightClient(milightClient),
@@ -15,6 +15,13 @@ MqttClient::MqttClient(Settings& settings, MiLightClient*& milightClient, const 
 }
 
 MqttClient::~MqttClient() {
+}
+
+void MqttClient::sendBirthMessage() {
+  if (settings.mqttBirthTopic.length() > 0) {
+    String aboutStr = AboutStringHelper::generateAboutString(true);
+    callback(settings.mqttBirthTopic.c_str(), aboutStr.c_str(), false);
+  }
 }
 
 //<added by HC>
@@ -80,6 +87,10 @@ void MqttClient::fromMeshCallback(const char *topic, const char *msg) {
 
   if (tokenBindings.hasBinding("device_id")) {
     deviceId = parseInt<uint16_t>(tokenBindings.get("device_id"));
+  } else if (tokenBindings.hasBinding("hex_device_id")) {
+    deviceId = parseInt<uint16_t>(tokenBindings.get("hex_device_id"));
+  } else if (tokenBindings.hasBinding("dec_device_id")) {
+    deviceId = parseInt<uint16_t>(tokenBindings.get("dec_device_id"));
   }
 
   if (tokenBindings.hasBinding("group_id")) {
@@ -108,7 +119,6 @@ void MqttClient::fromMeshCallback(const char *topic, const char *msg) {
       printf_P(PSTR("MqttClient - device %04X, group %u\r\n"), deviceId, groupId);
     #endif
 
-    milightClient->setResendCount(settings.packetRepeats * 2);
     milightClient->prepare(config, deviceId, groupId);
     milightClient->update(obj);
     }
