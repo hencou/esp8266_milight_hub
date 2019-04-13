@@ -83,7 +83,9 @@ void MiLightHttpServer::handleSystemPost() {
 
         delay(100);
         ESP.eraseConfig();
-        delay(100);
+    	  delay(100);
+        SPIFFS.format();
+    	  delay(100);
         ESP.restart();
 
         handled = true;
@@ -246,10 +248,6 @@ void MiLightHttpServer::handleFirmwarePost() {
   }
 
   	delay(1000);
-    ESP.eraseConfig();
-	delay(100);
-    SPIFFS.format();
-	delay(100);
     ESP.restart();
 }
 
@@ -528,4 +526,3 @@ ESP8266WebServer::THandlerFunction MiLightHttpServer::handleServe_P(const char* 
     server.client().stop();
   };
 }
-
