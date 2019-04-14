@@ -10,15 +10,14 @@
 #include <MiLightRemoteConfig.h>
 #include <MiLightHttpServer.h>
 #include <Settings.h>
-#include <MiLightUdpServer.h>
-#include <ESP8266mDNS.h>
-#include <ESP8266SSDP.h>
-
+//#include <MiLightUdpServer.h> //make space
+//#include <ESP8266mDNS.h> //make space
+//#include <ESP8266SSDP.h> //make space
 #include <RGBConverter.h>
-#include <MiLightDiscoveryServer.h>
+//#include <MiLightDiscoveryServer.h> //make space
 #include <MiLightClient.h>
 #include <BulbStateUpdater.h>
-//#include <LEDStatus.h> //Causes crashing
+//#include <LEDStatus.h> //make space
 #include <ESP8266MQTTmesh.h>
 #include <WallSwitch.h>
 #include <credentials.h>
@@ -51,52 +50,11 @@ MiLightClient* milightClient = NULL;
 MiLightRadioFactory* radioFactory = NULL;
 MiLightHttpServer *httpServer = NULL;
 MqttClient* mqttClient = NULL;
-MiLightDiscoveryServer* discoveryServer = NULL;
 uint8_t currentRadioType = 0;
 
 // For tracking and managing group state
 GroupStateStore* stateStore = NULL;
 BulbStateUpdater* bulbStateUpdater = NULL;
-
-int numUdpServers = 0;
-MiLightUdpServer** udpServers = NULL;
-WiFiUDP udpSeder;
-
-/**
- * Set up UDP servers (both v5 and v6).  Clean up old ones if necessary.
- */
- void initMilightUdpServers() {
-  if (udpServers) {
-    for (int i = 0; i < numUdpServers; i++) {
-      if (udpServers[i]) {
-        delete udpServers[i];
-      }
-    }
-
-    delete udpServers;
-  }
-
-  udpServers = new MiLightUdpServer*[settings.numGatewayConfigs];
-  numUdpServers = settings.numGatewayConfigs;
-
-  for (size_t i = 0; i < settings.numGatewayConfigs; i++) {
-    GatewayConfig* config = settings.gatewayConfigs[i];
-    MiLightUdpServer* server = MiLightUdpServer::fromVersion(
-      config->protocolVersion,
-      milightClient,
-      config->port,
-      config->deviceId
-    );
-
-    if (server == NULL) {
-      Serial.print(F("Error creating UDP server with protocol version: "));
-      Serial.println(config->protocolVersion);
-    } else {
-      udpServers[i] = server;
-      udpServers[i]->begin();
-    }
-  }
-}
 
 /**
  * Milight RF packet handler.
@@ -118,9 +76,9 @@ void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
   const MiLightRemoteConfig& remoteConfig =
     *MiLightRemoteConfig::fromType(bulbId.deviceType);
 
-  //update the status of groups for the first UDP device
-  if (settings.numGatewayConfigs > 0) {
-    if (bulbId.deviceId == settings.gatewayConfigs[0]->deviceId) {
+  //update the status of groups for the registered UDP devices
+  for (size_t i = 0; i < settings.numGatewayConfigs; i++) {
+    if (bulbId.deviceId == settings.gatewayConfigs[i]->deviceId) {
 
   		#ifdef DEBUG_PRINTF
   		Serial.println(F("onPacketSentHandler - update the status of groups for the first UDP device\r\n"));
@@ -307,17 +265,6 @@ void applySettings() {
     bulbStateUpdater = new BulbStateUpdater(settings, *mqttClient, *stateStore);
   }
 
-  initMilightUdpServers();
-
-  if (discoveryServer) {
-    delete discoveryServer;
-    discoveryServer = NULL;
-  }
-  if (settings.discoveryPort != 0) {
-    discoveryServer = new MiLightDiscoveryServer(settings);
-    discoveryServer->begin();
-  }
-
   //<added by HC>
   wallSwitch = new WallSwitch(settings, milightClient, stateStore, inTopic, outTopic);
   wallSwitch->setCallback(mqttToMesh);
@@ -363,25 +310,10 @@ void setup() {
     strlcpy(hostName, String(ESP.getChipId()).c_str(), sizeof(hostName));
   }
 
-  if (! MDNS.begin(hostName)) {
-    Serial.println(F("Error setting up MDNS responder"));
-  }
-
-  MDNS.addService("http", "tcp", 80);
-
-  //Causes crashing
-  // SSDP.setSchemaURL("description.xml");
-  // SSDP.setHTTPPort(80);
-  // SSDP.setName("test");
-  // SSDP.setSerialNumber(ESP.getChipId());
-  // SSDP.setURL("/");
-  // SSDP.setDeviceType("upnp:rootdevice");
-  // SSDP.begin();
-
   httpServer = new MiLightHttpServer(settings, milightClient, stateStore);
   httpServer->onSettingsSaved(applySettings);
   httpServer->onGroupDeleted(onGroupDeleted);
-  httpServer->on("/description.xml", HTTP_GET, []() { SSDP.schema(httpServer->client()); });
+  //httpServer->on("/description.xml", HTTP_GET, []() { SSDP.schema(httpServer->client()); });
   httpServer->begin();
 
   Serial.printf_P(PSTR("Setup complete (version %s)\n"), QUOTE(MILIGHT_HUB_VERSION));
@@ -392,16 +324,6 @@ void loop() {
 
   if (mqttClient) {
     bulbStateUpdater->loop();
-  }
-
-  if (udpServers) {
-    for (size_t i = 0; i < settings.numGatewayConfigs; i++) {
-      udpServers[i]->handleClient();
-    }
-  }
-
-  if (discoveryServer) {
-    discoveryServer->handleClient();
   }
 
   handleListen();
