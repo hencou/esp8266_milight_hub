@@ -142,6 +142,9 @@ int NRF24MiLightRadio::resend() {
     size_t channelIx = static_cast<uint8_t>(*it);
     uint8_t channel = _config.channels[channelIx];
 
+    //<added by HC>
+    wdt_reset();
+    //<added by HC>
     _pl1167.writeFIFO(_out_packet, _out_packet[0] + 1);
     _pl1167.transmit(channel);
   }

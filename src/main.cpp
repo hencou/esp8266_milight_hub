@@ -218,25 +218,21 @@ void applySettings() {
     delete wallSwitch;
     wallSwitch = NULL;
   }
-   if (mesh) {
-    //delete mesh;
-    //mesh = NULL;
-    delay(100);
-    ESP.restart();
+
+  if (!mesh) {
+    strlcpy(mqtt_server, settings.mqttServer().c_str(), sizeof(mqtt_server));
+    mqtt_port = settings.mqttPort();
+    mesh = ESP8266MQTTMesh::Builder(networks, mqtt_server, mqtt_port)
+         .setVersion(FIRMWARE_VER, FIRMWARE_ID)
+         .setMeshPassword(mesh_password)
+         .setMeshPort(mesh_port)
+         .setTopic(inTopic, outTopic)
+         .setHostName(hostName)
+         .buildptr();
+
+    mesh->setCallback(fromMeshCallback);
+    mesh->begin();
   }
-
-  strlcpy(mqtt_server, settings.mqttServer().c_str(), sizeof(mqtt_server));
-  mqtt_port = settings.mqttPort();
-  mesh = ESP8266MQTTMesh::Builder(networks, mqtt_server, mqtt_port)
-        .setVersion(FIRMWARE_VER, FIRMWARE_ID)
-        .setMeshPassword(mesh_password)
-        .setMeshPort(mesh_port)
-        .setTopic(inTopic, outTopic)
-        .setHostName(hostName)
-        .buildptr();
-
-  mesh->setCallback(fromMeshCallback);
-  mesh->begin();
 
   radioFactory = MiLightRadioFactory::fromSettings(settings);
 
