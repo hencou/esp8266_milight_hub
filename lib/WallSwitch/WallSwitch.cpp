@@ -172,10 +172,6 @@ void WallSwitch::doShortClicks(uint8_t id)
   {
     milightClient->unpair();
   }
-  if (shortClicks[id] == 6)
-  {
-    ESP.restart();
-  }
 }
 
 //handle long clicks
@@ -237,6 +233,13 @@ void WallSwitch::doLongClicks(uint8_t id)
       temperature -= 10;
       milightClient->updateTemperature(Units::miredsToWhiteVal(temperature, 100));
     }
+  }
+
+  //Reset after 10 seconds long press
+  if (millis_held[id] > 10000)
+  {
+    milightClient->updateStatus(OFF);
+    ESP.restart();
   }
 }
 
