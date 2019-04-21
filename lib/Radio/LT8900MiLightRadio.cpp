@@ -380,7 +380,7 @@ int LT8900MiLightRadio::write(uint8_t frame[], size_t frame_length)
   SPI.setDataMode(SPI_MODE1);
 
   int retval = resend();
-  yield();
+  //yield();
 
   SPI.setDataMode(SPI_MODE0);
 

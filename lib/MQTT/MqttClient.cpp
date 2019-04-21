@@ -121,6 +121,7 @@ void MqttClient::fromMeshCallback(const char *topic, const char *msg) {
 
     milightClient->prepare(config, deviceId, groupId);
     milightClient->update(obj);
+    milightClient->update(obj);
     }
   }
 }

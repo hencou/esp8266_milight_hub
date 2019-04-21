@@ -589,6 +589,10 @@ bool GroupState::setNightMode(bool nightMode) {
   state.fields._isSetNightMode = 1;
   state.fields._isNightMode = nightMode;
 
+  //<added by HC>
+  state.fields._isSetBulbMode = 1;
+  //</added by HC>
+
   return true;
 }
 

@@ -269,7 +269,7 @@ void MiLightHttpServer::handleFirmwareUpload() {
       Update.printError(Serial);
     }
   }
-  yield();
+  //yield();
 }
 
 
@@ -310,7 +310,7 @@ void MiLightHttpServer::handleListenGateway(const UrlTokenBindings* bindings) {
       );
     }
 
-    yield();
+    //yield();
   }
 
   char response[200];
