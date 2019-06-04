@@ -33,7 +33,7 @@ void WallSwitch::begin() {
   sensors.setResolution(12);
   sensors.begin();
 
-  if (settings.numGatewayConfigs > 0) {
+  if (settings.gatewayConfigs.size() > 0) {
 
     remoteConfig = MiLightRemoteConfig::fromType("rgb_cct");
     // Set button input pins
@@ -51,7 +51,7 @@ void WallSwitch::begin() {
 void WallSwitch::loop(bool standAloneAP) {
 
 //Get button event and act accordingly when UDP gateway configured
-  if (settings.numGatewayConfigs > 0) {
+  if (settings.gatewayConfigs.size() > 0) {
 
     //Startup with all lamps off
     doLightState();
@@ -249,13 +249,13 @@ void WallSwitch::sendMQTTCommand(uint8_t id)
   BulbId bulbId(settings.gatewayConfigs[0]->deviceId, id + 1, remoteConfig->type);
 
   char buffer[200];
-  StaticJsonBuffer<200> jsonBuffer;
-  JsonObject &message = jsonBuffer.createObject();
+  StaticJsonDocument<200> json;
+  JsonObject message = json.to<JsonObject>();
 
   GroupState* groupState = stateStore->get(bulbId);
-  groupState->applyState(message, bulbId, settings.groupStateFields, settings.numGroupStateFields);
+  groupState->applyState(message, bulbId, settings.groupStateFields);
 
-  message.printTo(buffer);
+  serializeJson(json, buffer);
 
   String topic = String(inTopic) + String(settings.mqttTopicPattern);
 

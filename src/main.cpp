@@ -22,6 +22,9 @@
 #include <WallSwitch.h>
 #include <credentials.h>
 
+#include <vector>
+#include <memory>
+
 Settings settings;
 
 #define      FIRMWARE_ID        0x1337
@@ -47,7 +50,7 @@ WallSwitch* wallSwitch = NULL;
 //</Added by HC>
 
 MiLightClient* milightClient = NULL;
-MiLightRadioFactory* radioFactory = NULL;
+std::shared_ptr<MiLightRadioFactory> radioFactory;
 MiLightHttpServer *httpServer = NULL;
 MqttClient* mqttClient = NULL;
 uint8_t currentRadioType = 0;
@@ -63,8 +66,8 @@ BulbStateUpdater* bulbStateUpdater = NULL;
  * is read.
  */
 void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
-  StaticJsonBuffer<200> buffer;
-  JsonObject& result = buffer.createObject();
+  StaticJsonDocument<200> buffer;
+  JsonObject result = buffer.to<JsonObject>();
 
   BulbId bulbId = config.packetFormatter->parsePacket(packet, result);
 
@@ -77,17 +80,17 @@ void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
     *MiLightRemoteConfig::fromType(bulbId.deviceType);
 
   //update the status of groups for the registered UDP devices
-  for (size_t i = 0; i < settings.numGatewayConfigs; i++) {
+  for (size_t i = 0; i < settings.gatewayConfigs.size(); i++) {
     if (bulbId.deviceId == settings.gatewayConfigs[i]->deviceId) {
 
   		#ifdef DEBUG_PRINTF
   		Serial.println(F("onPacketSentHandler - update the status of groups for the first UDP device\r\n"));
   		#endif
 
-      	// update state to reflect changes from this packet
+      // update state to reflect changes from this packet
   		GroupState* groupState = stateStore->get(bulbId);
 
-		// pass in previous scratch state as well
+		  // pass in previous scratch state as well
   		const GroupState stateUpdates(groupState, result);
 
 	    if (groupState != NULL) {
@@ -101,7 +104,7 @@ void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
 
   			// Sends the state delta derived from the raw packet
   			char output[200];
-  			result.printTo(output);
+  			serializeJson(result, output);
   			mqttClient->sendUpdate(remoteConfig, bulbId.deviceId, bulbId.groupId, output);
 
   			// Sends the entire state
@@ -133,7 +136,7 @@ void handleListen() {
     return;
   }
 
-  MiLightRadio* radio = milightClient->switchRadio(currentRadioType++ % milightClient->getNumRadios());
+  std::shared_ptr<MiLightRadio> radio = milightClient->switchRadio(currentRadioType++ % milightClient->getNumRadios());
 
   for (size_t i = 0; i < settings.listenRepeats; i++) {
     if (milightClient->available()) {
@@ -200,9 +203,6 @@ void onUpdateEnd() {
 void applySettings() {
   if (milightClient) {
     delete milightClient;
-  }
-  if (radioFactory) {
-    delete radioFactory;
   }
   if (mqttClient) {
     delete mqttClient;

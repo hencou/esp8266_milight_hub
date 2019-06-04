@@ -1,3 +1,5 @@
+# esp8266_milight_hub [![Build Status](https://travis-ci.org/sidoh/esp8266_milight_hub.svg?branch=master)](https://travis-ci.org/sidoh/esp8266_milight_hub) [![License][shield-license]][info-license]
+
 This is a fork of Sidoh's Milight Hub: https://github.com/sidoh/esp8266_milight_hub/
 Instead of using a central hub this project aims to be used behind every wall switch.
 * RGB_CCT Lights can be controlled with MQTT, HTTP, MiLight remote or a wall push switch.
@@ -80,6 +82,7 @@ Both modules are SPI devices and should be connected to the standard SPI pins on
 
 ##### NRF24L01+
 
+
 [This guide](https://www.mysensors.org/build/connect_radio#nrf24l01+-&-esp8266) details how to connect an NRF24 to an ESP8266. By default GPIO 4 for CE and GPIO 15 for CSN are used, but these can be configured late in the Web GUI under Settings -> Setup.
 
 <img src="https://user-images.githubusercontent.com/40266/47967518-67556f00-e05e-11e8-857d-1173a9da955c.png" align="left" width="32%" />
@@ -124,6 +127,33 @@ Configure the Wifi and Mesh settings in the header of main.cpp and in /src/crede
 The HTTP endpoints (shown below) will be fully functional at this point. You should also be able to navigate to `http://<ip_of_esp>`, or `http://milight-hub.local` if your client supports mDNS. The UI should look like this:
 
 ![Web UI](https://user-images.githubusercontent.com/589893/39412360-0d95ab2e-4bd0-11e8-915c-7fef7ee38761.png)
+
+
+If it does not work as expected see [Troubleshooting](https://github.com/sidoh/esp8266_milight_hub/wiki/Troubleshooting).
+
+#### Pair Bulbs
+
+If you need to pair some bulbs, how to do this is [described in the wiki](https://github.com/sidoh/esp8266_milight_hub/wiki/Pairing-new-bulbs).
+
+## LED Status
+
+Some ESP boards have a built-in LED, on pin #2.  This LED will flash to indicate the current status of the hub:
+
+* Wifi not configured: Fast flash (on/off once per second).  See [Configure Wifi](#configure-wifi) to configure the hub.
+* Wifi connected and ready: Occasional blips of light (a flicker of light every 1.5 seconds).
+* Packets sending/receiving: Rapid blips of light for brief periods (three rapid flashes).
+* Wifi failed to configure: Solid light.
+
+In the setup UI, you can turn on "enable_solid_led" to change the LED behavior to:
+
+* Wifi connected and ready: Solid LED light
+* Wifi failed to configure: Light off
+
+Note that you must restart the hub to affect the change in "enable_solid_led".
+
+You can configure the LED pin from the web console.  Note that pin means the GPIO number, not the D number ... for example, D2 is actually GPIO4 and therefore its pin 4.  If you specify the pin as a negative number, it will invert the LED signal (the built-in LED on pin 2 is inverted, so the default is -2).
+
+If you want to wire up your own LED on a pin, such as on D2/GPIO4, put a wire from D2 to one side of a 220 ohm resister.  On the other side, connect it to the positive side (the longer wire) of a 3.3V LED.  Then connect the negative side of the LED (the shorter wire) to ground.  If you use a different voltage LED, or a high current LED, you will need to add a driver circuit.
 
 ## REST endpoints
 
@@ -274,6 +304,16 @@ You can select which fields should be included in state updates by configuring t
 1. `color` / `computed_color` - behaves the same when bulb is in rgb mode.  `computed_color` will send RGB = 255,255,255 when in white mode.  This is useful for HomeAssistant where it always expects the color to be set.
 1. `oh_color` - same as `color` with a format compatible with [OpenHAB's colorRGB channel type](https://www.openhab.org/addons/bindings/mqtt.generic/#channel-type-colorrgb-colorhsb).
 1. `device_id` / `device_type` / `group_id` - this information is in the MQTT topic or REST route, but can be included in the payload in the case that processing the topic or route is more difficult.
+
+#### Client Status
+
+To receive updates when the MQTT client connects or disconnects from the broker, confugre the `mqtt_client_status_topic` parameter.  A message of the following form will be published:
+
+```json
+{"status":"disconnected_unclean","firmware":"milight-hub","version":"1.9.0-rc3","ip_address":"192.168.1.111","reset_reason":"External System"}
+```
+
+If you wish to have the simple messages `connected` and `disconnected` instead of the above environmental data, configure `simple_mqtt_client_status` to `true` (or set Client Status Message Mode to "Simple" in the Web UI).
 
 ## UDP Gateways
 

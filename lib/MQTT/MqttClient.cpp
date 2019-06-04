@@ -5,7 +5,11 @@
 #include <IntParsing.h>
 #include <ArduinoJson.h>
 #include <MiLightRadioConfig.h>
-#include <AboutStringHelper.h>
+#include <AboutHelper.h>
+
+static const char* STATUS_CONNECTED = "connected";
+static const char* STATUS_DISCONNECTED = "disconnected_clean";
+static const char* STATUS_LWT_DISCONNECTED = "disconnected_unclean";
 
 MqttClient::MqttClient(Settings& settings, MiLightClient*& milightClient, const char* outTopic)
   : milightClient(milightClient),
@@ -15,13 +19,6 @@ MqttClient::MqttClient(Settings& settings, MiLightClient*& milightClient, const 
 }
 
 MqttClient::~MqttClient() {
-}
-
-void MqttClient::sendBirthMessage() {
-  if (settings.mqttBirthTopic.length() > 0) {
-    String aboutStr = AboutStringHelper::generateAboutString(true);
-    callback(settings.mqttBirthTopic.c_str(), aboutStr.c_str(), false);
-  }
 }
 
 //<added by HC>
@@ -108,11 +105,12 @@ void MqttClient::fromMeshCallback(const char *topic, const char *msg) {
     Serial.println(F("MqttClient - WARNING: could not find device_type token.  Defaulting to FUT092.\n"));
   }
 
-  StaticJsonBuffer<400> buffer;
-  JsonObject& obj = buffer.parseObject(msg);
+  StaticJsonDocument<400> buffer;
+  deserializeJson(buffer, msg);
+  JsonObject obj = buffer.as<JsonObject>();
 
   //accept incoming MQTT command only when deviceId is in use as UDP device
-  for (size_t i = 0; i < settings.numGatewayConfigs; i++) {
+  for (size_t i = 0; i < settings.gatewayConfigs.size(); i++) {
     if (deviceId == settings.gatewayConfigs[i]->deviceId) {
 
     #ifdef MQTT_DEBUG
@@ -141,4 +139,26 @@ inline void MqttClient::bindTopicString(
   topicPattern.replace(":dec_device_id", String(deviceId));
   topicPattern.replace(":group_id", String(groupId));
   topicPattern.replace(":device_type", remoteConfig.name);
+}
+
+String MqttClient::generateConnectionStatusMessage(const char* connectionStatus) {
+  if (settings.simpleMqttClientStatus) {
+    // Don't expand disconnect type for simple status
+    if (0 == strcmp(connectionStatus, STATUS_CONNECTED)) {
+      return connectionStatus;
+    } else {
+      return "disconnected";
+    }
+  } else {
+    StaticJsonDocument<1024> json;
+    json["status"] = connectionStatus;
+
+    // Fill other fields
+    AboutHelper::generateAboutObject(json, true);
+
+    String response;
+    serializeJson(json, response);
+
+    return response;
+  }
 }

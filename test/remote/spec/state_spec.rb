@@ -1,9 +1,4 @@
 require 'api_client'
-require './helpers/state_helpers'
-
-RSpec.configure do |c|
-  c.include StateHelpers
-end
 
 RSpec.describe 'State' do
   before(:all) do
@@ -35,6 +30,59 @@ RSpec.describe 'State' do
 
       next_state = @client.patch_state({'command' => 'toggle'}, @id_params)
       expect(next_state['status']).to eq('ON')
+    end
+  end
+
+  context 'night mode command' do
+    StateHelpers::ALL_REMOTE_TYPES
+      .reject { |x| %w(rgb).include?(x) } # Night mode not supported for these types
+      .each do |type|
+      it "should affect state when bulb is OFF for #{type}" do
+        params = @id_params.merge(type: type)
+        @client.delete_state(params)
+        state = @client.patch_state({'command' => 'night_mode'}, params)
+
+        expect(state['bulb_mode']).to eq('night')
+        expect(state['effect']).to    eq('night_mode')
+      end
+    end
+
+    StateHelpers::ALL_REMOTE_TYPES
+      .reject { |x| %w(rgb).include?(x) } # Night mode not supported for these types
+      .each do |type|
+      it "should affect state when bulb is ON for #{type}" do
+        params = @id_params.merge(type: type)
+        @client.delete_state(params)
+        @client.patch_state({'status' => 'ON'}, params)
+        state = @client.patch_state({'command' => 'night_mode'}, params)
+
+        # RGBW bulbs have to be OFF in order for night mode to take affect
+        expect(state['status']).to    eq('ON') if type != 'rgbw'
+        expect(state['bulb_mode']).to eq('night')
+        expect(state['effect']).to    eq('night_mode')
+      end
+    end
+
+    it 'should revert to previous mode when status is toggled' do
+      @client.patch_state({'status' => 'ON', 'kelvin' => 100}, @id_params)
+      state = @client.patch_state({'command' => 'night_mode'}, @id_params)
+
+      expect(state['effect']).to eq('night_mode')
+
+      state = @client.patch_state({'status' => 'OFF'}, @id_params)
+
+      expect(state['bulb_mode']).to eq('white')
+      expect(state['kelvin']).to    eq(100)
+
+      @client.patch_state({'status' => 'ON', 'hue' => 0}, @id_params)
+      state = @client.patch_state({'command' => 'night_mode'}, @id_params)
+
+      expect(state['effect']).to eq('night_mode')
+
+      state = @client.patch_state({'status' => 'OFF'}, @id_params)
+
+      expect(state['bulb_mode']).to eq('color')
+      expect(state['hue']).to       eq(0)
     end
   end
 
@@ -182,7 +230,7 @@ RSpec.describe 'State' do
       resulting_state = @client.get_state(group_0_params)
       expect(resulting_state).to_not include('level')
 
-      # white mode -> color.  
+      # white mode -> color.
       white_mode_desired_state = {'status' => 'ON', 'color_temp' => 253, 'level' => 11}
       @client.patch_state(white_mode_desired_state, group_0_params)
       @client.patch_state({'hue' => 10}, @id_params)
@@ -248,6 +296,31 @@ RSpec.describe 'State' do
 
       expect(state.keys).to include(*desired_state.keys)
       expect(state.select { |x| desired_state.include?(x) } ).to eq(desired_state)
+    end
+
+    it 'should support separate brightness fields for different modes' do
+      desired_state = {
+        'hue' => 0,
+        'level' => 50
+      }
+
+      @client.patch_state(desired_state, @id_params)
+      result = @client.get_state(@id_params)
+      expect(result['bulb_mode']).to eq('color')
+      expect(result['level']).to eq(50)
+
+
+      @client.patch_state({'kelvin' => 100}, @id_params)
+      @client.patch_state({'level' => 70}, @id_params)
+      result = @client.get_state(@id_params)
+      expect(result['bulb_mode']).to eq('white')
+      expect(result['level']).to eq(70)
+
+      @client.patch_state({'hue' => 0}, @id_params)
+      result = @client.get_state(@id_params)
+      expect(result['bulb_mode']).to eq('color')
+      # Should retain previous brightness
+      expect(result['level']).to eq(50)
     end
   end
 
@@ -318,6 +391,56 @@ RSpec.describe 'State' do
       expect(state).to           include('level', 'kelvin')
       expect(state['level']).to  eq(90)
       expect(state['kelvin']).to eq(90)
+    end
+  end
+
+  context 'state updates while off' do
+    it 'should not affect persisted state' do
+      @client.patch_state({'status' => 'OFF'}, @id_params)
+      state = @client.patch_state({'hue' => 100}, @id_params)
+
+      expect(state.count).to eq(1)
+      expect(state).to include('status')
+    end
+
+    it 'should not affect persisted state using increment/decrement' do
+      @client.patch_state({'status' => 'OFF'}, @id_params)
+
+      10.times do
+        @client.patch_state(
+          { commands: ['level_down', 'temperature_down'] },
+          @id_params
+        )
+      end
+
+      state = @client.get_state(@id_params)
+
+      expect(state.count).to eq(1)
+      expect(state).to include('status')
+    end
+  end
+
+  context 'fut089' do
+    # FUT089 uses the same command ID for both kelvin and saturation command, so
+    # interpreting such a command depends on knowledge of the state that the bulb
+    # is in.
+    it 'should keep enough group 0 state to interpret ambiguous kelvin/saturation commands as saturation commands when in color mode' do
+      group0_params = @id_params.merge(type: 'fut089', group_id: 0)
+
+      (0..8).each do |group_id|
+        @client.delete_state(group0_params.merge(group_id: group_id))
+      end
+
+      # Patch in separate commands so state must be kept
+      @client.patch_state({'status' => 'ON', 'hue' => 0}, group0_params)
+      @client.patch_state({'saturation' => 100}, group0_params)
+
+      (0..8).each do |group_id|
+        state = @client.get_state(group0_params.merge(group_id: group_id))
+        expect(state['bulb_mode']).to eq('color')
+        expect(state['saturation']).to eq(100)
+        expect(state['hue']).to eq(0)
+      end
     end
   end
 end

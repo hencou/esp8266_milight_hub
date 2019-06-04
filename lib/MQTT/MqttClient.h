@@ -27,6 +27,7 @@ private:
   MiLightClient*& milightClient;
   Settings& settings;
   const char* outTopic;
+  unsigned long lastConnectAttempt;
   void sendBirthMessage();
   void publish(
     const String& topic,
@@ -43,6 +44,8 @@ private:
     const uint16_t deviceId,
     const uint16_t groupId
   );
+
+  String generateConnectionStatusMessage(const char* status);
 };
 
 #endif
