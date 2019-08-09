@@ -9,22 +9,17 @@
 #include <DallasTemperature.h>
 #include <ESP8266Wifi.h>
 
-WallSwitch::WallSwitch(Settings& settings, MiLightClient*& milightClient, GroupStateStore*& stateStore, const char *inTopic, const char *outTopic)
+WallSwitch::WallSwitch(Settings& settings, MiLightClient*& milightClient, GroupStateStore*& stateStore, MqttClient& mqttClient)
   : milightClient(milightClient),
     settings(settings),
     stateStore(stateStore),
-    inTopic(inTopic),
-    outTopic(outTopic),
+    mqttClient(mqttClient),
     oneWire(ONE_WIRE_BUS),
     sensors(&oneWire)
 {
 }
 
 WallSwitch::~WallSwitch() {
-}
-
-void WallSwitch::setCallback(std::function<void(const char *topic, const char *msg, const bool retain)> _callback) {
-    callback = _callback;
 }
 
 void WallSwitch::begin() {
@@ -72,9 +67,9 @@ void WallSwitch::loop(bool standAloneAP) {
     lastMsg = millis();
     char topic[128];
     char msg[64];
-    snprintf(topic, sizeof(topic), "%sstate/%s/heap", outTopic, WiFi.macAddress().c_str());
+    snprintf(topic, sizeof(topic), "state/%s/heap", WiFi.macAddress().c_str());
     snprintf(msg, sizeof(msg), "%d", ESP.getFreeHeap());
-    callback(topic, msg, false);
+    mqttClient.send(topic, msg, false);
 
     //send the DS18B20 temperature if available
     int deviceCount = sensors.getDeviceCount();
@@ -83,9 +78,9 @@ void WallSwitch::loop(bool standAloneAP) {
 
     sensors.requestTemperatures();
     if (deviceCount > 0) {
-      snprintf(topic, sizeof(topic), "%sstate/%s/temperature", outTopic, WiFi.macAddress().c_str());
+      snprintf(topic, sizeof(topic), "state/%s/temperature", WiFi.macAddress().c_str());
       dtostrf(sensors.getTempCByIndex(0),5, 2, msg);
-      callback(topic, msg, false);
+      mqttClient.send(topic, msg, false);
     }
   }
 }
@@ -145,7 +140,6 @@ void WallSwitch::checkButton(int buttonPin, uint8_t id) {
 //handle short clicks
 void WallSwitch::doShortClicks(uint8_t id)
 {
-  milightClient->setResendCount(settings.packetRepeats * 2);
   milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, id + 1);
 
   if (shortClicks[id] == 1)
@@ -183,9 +177,7 @@ void WallSwitch::doLongClicks(uint8_t id)
   //set lamps on before raising brightness and initialize raising state
   if (initLongClick[id])
   {
-    milightClient->setResendCount(settings.packetRepeats * 2);
     milightClient->updateStatus(ON);
-    milightClient->setResendCount(settings.packetRepeats);
 
     uint8_t brightness = stateStore->get(bulbId)->getBrightness();
     if (brightness > 90) {raisingBrightness[id] = false;}
@@ -257,8 +249,7 @@ void WallSwitch::sendMQTTCommand(uint8_t id)
 
   serializeJson(json, buffer);
 
-  String topic = String(inTopic) + String(settings.mqttTopicPattern);
-
+  String topic = settings.mqttTopicPattern;
   String deviceIdStr = String(bulbId.deviceId, 16);
   deviceIdStr.toUpperCase();
 
@@ -270,8 +261,8 @@ void WallSwitch::sendMQTTCommand(uint8_t id)
     Serial.printf("WallSwitch - send message to topic: %s : %s\r\n", topic.c_str(), buffer);
   #endif
 
-  //send command to mesh_in/milight/xxx/xxx/x
-  callback(topic.c_str(), buffer, false);
+  //send command to milight/xxx/xxx/x
+  mqttClient.send(topic.c_str(), buffer, false);
 }
 
 //handle actions based on LDR state
@@ -317,8 +308,6 @@ void WallSwitch::doDayNight()
     Serial.println(F("LDR triggered night condition, turn lamps on..."));
     nightTime = millis()/1000;
 
-    milightClient->setResendCount(settings.packetRepeats * 2);
-
     milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 1); //zithoek
     milightClient->updateStatus(ON);
     milightClient->updateTemperature(100);
@@ -340,7 +329,6 @@ void WallSwitch::doDayNight()
     Serial.println(F("Nightmode timeout, turn light in nightmode"));
     isMidNight = true;
 
-    milightClient->setResendCount(settings.packetRepeats * 2);
     milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 4); //outdoor light
     milightClient->enableNightMode();
   }
@@ -348,7 +336,6 @@ void WallSwitch::doDayNight()
   if (previousNight == true && isNight == false){
     Serial.println(F("LDR triggered day condition, turn lamps off..."));
 
-    milightClient->setResendCount(settings.packetRepeats * 2);
     milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 0); //all lamps off
     milightClient->updateStatus(OFF);
   }
@@ -358,7 +345,7 @@ void WallSwitch::doDayNight()
 
 void WallSwitch::detectMotion() {
 
-  if (lastAnalogRead + 100 < millis())
+  if (lastAnalogRead + 500 < millis())
   {
     lastAnalogRead = millis();
     motionLevel = analogRead(A0);
@@ -370,20 +357,20 @@ void WallSwitch::detectMotion() {
     firstMotion = millis();
   }
 
-  if (motion == true && motionState == false && (millis() - firstMotion) > 2200) {
+  if (motion == true && motionState == false && (millis() - firstMotion) > 1000) {
     motionState = true;
 
-    char topic[128];
-    snprintf(topic, sizeof(topic), "%sstate/%s/motion", outTopic, WiFi.macAddress().c_str());
-    callback(topic, "ON", false);
+    char topic[128];    
+    snprintf(topic, sizeof(topic), "state/%s/motion", WiFi.macAddress().c_str());
+    mqttClient.send(topic, "ON", false);
   }
 
   if (motion == false && motionState == true) {
     motionState = false;
 
     char topic[128];
-    snprintf(topic, sizeof(topic), "%sstate/%s/motion", outTopic, WiFi.macAddress().c_str());
-    callback(topic, "OFF", false);
+    snprintf(topic, sizeof(topic), "state/%s/motion", WiFi.macAddress().c_str());
+    mqttClient.send(topic, "OFF", false);
   }
   previousMotion = motion;
 }
@@ -396,7 +383,6 @@ void WallSwitch::doLightState() {
 
     isStartUp = false;
 
-    milightClient->setResendCount(settings.packetRepeats * 10);
     milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 0);
     milightClient->updateTemperature(100);
     milightClient->updateStatus(OFF);
