@@ -8,7 +8,6 @@
 #include <RF24Channel.h>
 #include <Settings.h>
 #include <vector>
-#include <memory>
 
 #ifndef _MILIGHT_RADIO_FACTORY_H
 #define _MILIGHT_RADIO_FACTORY_H
@@ -17,9 +16,9 @@ class MiLightRadioFactory {
 public:
 
   virtual ~MiLightRadioFactory() { };
-  virtual std::shared_ptr<MiLightRadio> create(const MiLightRadioConfig& config) = 0;
+  virtual MiLightRadio* create(const MiLightRadioConfig& config) = 0;
 
-  static std::shared_ptr<MiLightRadioFactory> fromSettings(const Settings& settings);
+  static MiLightRadioFactory* fromSettings(const Settings& settings);
 
 };
 
@@ -34,7 +33,7 @@ public:
     RF24Channel listenChannel
   );
 
-  virtual std::shared_ptr<MiLightRadio> create(const MiLightRadioConfig& config);
+  virtual MiLightRadio* create(const MiLightRadioConfig& config);
 
 protected:
 
@@ -49,7 +48,7 @@ public:
 
   LT8900Factory(uint8_t csPin, uint8_t resetPin, uint8_t pktFlag);
 
-  virtual std::shared_ptr<MiLightRadio> create(const MiLightRadioConfig& config);
+  virtual MiLightRadio* create(const MiLightRadioConfig& config);
 
 protected:
 

@@ -39,11 +39,10 @@ void BulbStateUpdater::loop() {
 
 inline void BulbStateUpdater::flushGroup(BulbId bulbId, GroupState& state) {
   char buffer[200];
-  StaticJsonDocument<200> json;
-  JsonObject message = json.to<JsonObject>();
-
-  state.applyState(message, bulbId, settings.groupStateFields);
-  serializeJson(json, buffer);
+  StaticJsonBuffer<200> jsonBuffer;
+  JsonObject& message = jsonBuffer.createObject();
+  state.applyState(message, bulbId, settings.groupStateFields, settings.numGroupStateFields);
+  message.printTo(buffer);
 
   mqttClient.sendState(
     *MiLightRemoteConfig::fromType(bulbId.deviceType),

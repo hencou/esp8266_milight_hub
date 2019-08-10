@@ -66,23 +66,4 @@ RSpec.describe 'REST Server' do
       expect { @client.get('/settings') }.not_to raise_error
     end
   end
-
-  context 'misc routes' do
-    it 'should respond to /about' do
-      result = @client.get('/about')
-
-      expect(result['firmware']).to eq('milight-hub')
-    end
-
-    it 'should respond to /system' do
-      expect { @client.post('/system', {}) }.to raise_error('400 "Bad Request"')
-    end
-
-    it 'should respond to /remote_configs' do
-      result = @client.get('/remote_configs')
-
-      expect(result).to be_a(Array)
-      expect(result).to include('rgb_cct')
-    end
-  end
 end

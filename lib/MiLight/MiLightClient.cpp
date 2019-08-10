@@ -6,12 +6,13 @@
 #include <TokenIterator.h>
 
 MiLightClient::MiLightClient(
-  std::shared_ptr<MiLightRadioFactory> radioFactory,
+  MiLightRadioFactory* radioFactory,
   GroupStateStore* stateStore,
   Settings* settings
 )
   : currentRadio(NULL),
     currentRemote(NULL),
+    numRadios(MiLightRadioConfig::NUM_CONFIGS),
     packetSentHandler(NULL),
     updateBeginHandler(NULL),
     updateEndHandler(NULL),
@@ -20,13 +21,15 @@ MiLightClient::MiLightClient(
     lastSend(0),
     baseResendCount(MILIGHT_DEFAULT_RESEND_COUNT)
 {
-  for (size_t i = 0; i < MiLightRadioConfig::NUM_CONFIGS; i++) {
-    radios.push_back(radioFactory->create(MiLightRadioConfig::ALL_CONFIGS[i]));
+  radios = new MiLightRadio*[numRadios];
+
+  for (size_t i = 0; i < numRadios; i++) {
+    radios[i] = radioFactory->create(MiLightRadioConfig::ALL_CONFIGS[i]);
   }
 }
 
 void MiLightClient::begin() {
-  for (size_t i = 0; i < radios.size(); i++) {
+  for (size_t i = 0; i < numRadios; i++) {
     radios[i]->begin();
   }
 
@@ -46,10 +49,10 @@ void MiLightClient::setHeld(bool held) {
 }
 
 size_t MiLightClient::getNumRadios() const {
-  return radios.size();
+  return numRadios;
 }
 
-std::shared_ptr<MiLightRadio> MiLightClient::switchRadio(size_t radioIx) {
+MiLightRadio* MiLightClient::switchRadio(size_t radioIx) {
   if (radioIx >= getNumRadios()) {
     return NULL;
   }
@@ -62,10 +65,10 @@ std::shared_ptr<MiLightRadio> MiLightClient::switchRadio(size_t radioIx) {
   return this->currentRadio;
 }
 
-std::shared_ptr<MiLightRadio> MiLightClient::switchRadio(const MiLightRemoteConfig* remoteConfig) {
-  std::shared_ptr<MiLightRadio> radio = NULL;
+MiLightRadio* MiLightClient::switchRadio(const MiLightRemoteConfig* remoteConfig) {
+  MiLightRadio* radio = NULL;
 
-  for (size_t i = 0; i < radios.size(); i++) {
+  for (size_t i = 0; i < numRadios; i++) {
     if (&this->radios[i]->config() == &remoteConfig->radioConfig) {
       radio = switchRadio(i);
       break;
@@ -216,9 +219,9 @@ void MiLightClient::modeSpeedUp() {
 }
 
 void MiLightClient::updateStatus(MiLightStatus status, uint8_t groupId) {
-#ifdef DEBUG_CLIENT_COMMANDS
-  Serial.printf_P(PSTR("MiLightClient::updateStatus: Status %s, groupId %d\n"), status == MiLightStatus::OFF ? "OFF" : "ON", groupId);
-#endif
+  #ifdef DEBUG_CLIENT_COMMANDS
+    Serial.printf_P(PSTR("MiLightClient::updateStatus: Status %s, groupId %d\n"), status == MiLightStatus::OFF ? "OFF" : "ON", groupId);
+  #endif
 
   //<added by HC>
   if (status == MiLightStatus::OFF) {
@@ -231,9 +234,9 @@ void MiLightClient::updateStatus(MiLightStatus status, uint8_t groupId) {
 }
 
 void MiLightClient::updateStatus(MiLightStatus status) {
-#ifdef DEBUG_CLIENT_COMMANDS
-  Serial.printf_P(PSTR("MiLightClient::updateStatus: Status %s\n"), status == MiLightStatus::OFF ? "OFF" : "ON");
-#endif
+  #ifdef DEBUG_CLIENT_COMMANDS
+    Serial.printf_P(PSTR("MiLightClient::updateStatus: Status %s\n"), status == MiLightStatus::OFF ? "OFF" : "ON");
+  #endif
 
   //<added by HC>
   if (status == MiLightStatus::OFF) {
@@ -262,9 +265,9 @@ void MiLightClient::updateColorWhite() {
 }
 
 void MiLightClient::enableNightMode() {
-#ifdef DEBUG_CLIENT_COMMANDS
-  Serial.println(F("MiLightClient::enableNightMode: Night mode"));
-#endif
+  #ifdef DEBUG_CLIENT_COMMANDS
+    Serial.println(F("MiLightClient::enableNightMode: Night mode"));
+  #endif
 
   //<added by HC>
   this->updateBrightness(0);
@@ -346,7 +349,7 @@ void MiLightClient::toggleStatus() {
   flushPacket();
 }
 
-void MiLightClient::update(JsonObject request) {
+void MiLightClient::update(const JsonObject& request) {
   if (this->updateBeginHandler) {
     this->updateBeginHandler();
   }
@@ -363,11 +366,11 @@ void MiLightClient::update(JsonObject request) {
   }
 
   if (request.containsKey("commands")) {
-    JsonArray commands = request["commands"];
+    JsonArray& commands = request["commands"];
 
-    if (! commands.isNull()) {
+    if (commands.success()) {
       for (size_t i = 0; i < commands.size(); i++) {
-        this->handleCommand(commands[i].as<const char*>());
+        this->handleCommand(commands.get<String>(i));
       }
     }
   }
@@ -389,7 +392,7 @@ void MiLightClient::update(JsonObject request) {
     uint16_t r, g, b;
 
     if (request["color"].is<JsonObject>()) {
-      JsonObject color = request["color"];
+      JsonObject& color = request["color"];
 
       r = color["r"];
       g = color["g"];
@@ -438,7 +441,7 @@ void MiLightClient::update(JsonObject request) {
   }
   // HomeAssistant
   if (request.containsKey("brightness")) {
-    uint8_t scaledBrightness = Units::rescale(request["brightness"].as<uint8_t>(), 100, 255);
+    uint8_t scaledBrightness = Units::rescale(request.get<uint8_t>("brightness"), 100, 255);
     this->updateBrightness(scaledBrightness);
   }
 
@@ -514,23 +517,18 @@ void MiLightClient::handleEffect(const String& effect) {
   }
 }
 
-uint8_t MiLightClient::parseStatus(JsonObject object) {
-  JsonVariant status;
+uint8_t MiLightClient::parseStatus(const JsonObject& object) {
+  String strStatus;
 
   if (object.containsKey("status")) {
-    status = object["status"];
+    strStatus = object.get<char*>("status");
   } else if (object.containsKey("state")) {
-    status = object["state"];
+    strStatus = object.get<char*>("state");
   } else {
     return 255;
   }
 
-  if (status.is<bool>()) {
-    return status.as<bool>() ? ON : OFF;
-  } else {
-    String strStatus(status.as<const char*>());
-    return (strStatus.equalsIgnoreCase("on") || strStatus.equalsIgnoreCase("true")) ? ON : OFF;
-  }
+  return (strStatus.equalsIgnoreCase("on") || strStatus.equalsIgnoreCase("true")) ? ON : OFF;
 }
 
 void MiLightClient::updateResendCount() {

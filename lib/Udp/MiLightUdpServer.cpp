@@ -40,11 +40,11 @@ void MiLightUdpServer::handleClient() {
   }
 }
 
-std::shared_ptr<MiLightUdpServer> MiLightUdpServer::fromVersion(uint8_t version, MiLightClient*& client, uint16_t port, uint16_t deviceId) {
+MiLightUdpServer* MiLightUdpServer::fromVersion(uint8_t version, MiLightClient*& client, uint16_t port, uint16_t deviceId) {
   if (version == 0 || version == 5) {
-    return std::make_shared<V5MiLightUdpServer>(client, port, deviceId);
+    return new V5MiLightUdpServer(client, port, deviceId);
   } else if (version == 6) {
-    return std::make_shared<V6MiLightUdpServer>(client, port, deviceId);
+    return new V6MiLightUdpServer(client, port, deviceId);
   }
 
   return NULL;

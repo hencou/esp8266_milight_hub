@@ -155,7 +155,7 @@ int PL1167_nRF24::transmit(uint8_t channel)
     if (retval < 0) {
       return retval;
     }
-    yield();
+    //yield();
   }
 
   _radio.stopListening();
@@ -175,7 +175,7 @@ int PL1167_nRF24::transmit(uint8_t channel)
     }
   }
 
-  yield();
+  //yield();
 
   _radio.write(tmp, outp);
   return 0;

@@ -1,5 +1,27 @@
-# esp8266_milight_hub [![Build Status](https://travis-ci.org/sidoh/esp8266_milight_hub.svg?branch=master)](https://travis-ci.org/sidoh/esp8266_milight_hub) [![License][shield-license]][info-license]
+This is a fork of Sidoh's Milight Hub: https://github.com/sidoh/esp8266_milight_hub/
+Instead of using a central hub this project aims to be used behind every wall switch.
+* RGB_CCT Lights can be controlled with MQTT, HTTP, MiLight remote or a wall push switch.
+* Wall switches will remains working even without WIFI.
+* Status updates will be send to MQTT.
+* WallSwitch commands are also forwarded to the MQTT command topic to extend the range.
+* ESP8266MQTTMesh is used for the Wifi connection. When the Wifi is out of range, it creates a mesh network automaticaly with an gateway to the MQTT server.
 
+UDP functionality is removed to save space, besides using it to know which deviceId to control.
+The first configured (UDP) deviceId from the settings is used for the wall switches. MQTT commands are only send to light bulbs when the corresponding deviceId is configured as (UDP) deviceId.
+
+Button press functions:
+* Short press: light off
+* Long press: fade light in to max brightness
+* 10 seconds long press: restart ESP
+* 1 short and long press: change temperature from cold to warm and vice versa
+* 2 short presses: night mode
+* 3 short presses: white mode
+* 4 short presses: pair bulb
+* 5 short presses: unpair bulb
+
+Below the original text of Sidoh's Milight Hub with slight modifications:
+
+# esp8266_milight_hub/switch
 This is a replacement for a Milight/LimitlessLED remote/gateway hosted on an ESP8266. Leverages [Henryk Plötz's awesome reverse-engineering work](https://hackaday.io/project/5888-reverse-engineering-the-milight-on-air-protocol).
 
 [Milight bulbs](https://www.amazon.com/Mi-light-Dimmable-RGBWW-Spotlight-Smart/dp/B01LPRQ4BK/r) are cheap smart bulbs that are controllable with an undocumented 2.4 GHz protocol. In order to control them, you either need a [remote](https://www.amazon.com/Mi-light-Dimmable-RGBWW-Spotlight-Smart/dp/B01LCSALV6/r?th=1) ($13), which allows you to control them directly, or a [WiFi gateway](http://futlight.com/productlist.aspx?typeid=125) ($30), which allows you to control them with a mobile app or a [UDP protocol](https://github.com/Fantasmos/LimitlessLED-DevAPI).
@@ -35,11 +57,20 @@ Other remotes or bulbs, but have not been tested.
 
 ## What you'll need
 
-1. An ESP8266. I used a NodeMCU.
+1. An ESP8266. I used a Wemos D1 Mini.
 2. A NRF24L01+ module (~$3 on ebay). Alternatively, you can use a LT8900.
 3. Some way to connect the two (7 female/female dupont cables is probably easiest).
+4. 10 uF capacitor between power supply and NRF24L01+
+5. HLK-PM03 3V3 Power supply, or HLK-PM01 5V to support RCWL-0516 radar sensor (optional)
 
 ## Installing
+
+#### Connecting GPIO
+
+I used a Wemos D1 mini because it's very small to fit behind a wall switch.
+* GPIO D1-D3 as input from wall switch to control groups 1-3. LOW is active state. Use a push switch or touch sensor like TTP223, solder jumper A on TTP223 to achieve active LOW output.
+* Use GPIO D4 as input for a DS18B20 temperature sensor
+* Use GPIO A0 as input for a LDR or RCWL-0516 radar sensor
 
 #### Connect the NRF24L01+ / LT8900
 
@@ -49,24 +80,24 @@ Both modules are SPI devices and should be connected to the standard SPI pins on
 
 ##### NRF24L01+
 
-
 [This guide](https://www.mysensors.org/build/connect_radio#nrf24l01+-&-esp8266) details how to connect an NRF24 to an ESP8266. By default GPIO 4 for CE and GPIO 15 for CSN are used, but these can be configured late in the Web GUI under Settings -> Setup.
 
 <img src="https://user-images.githubusercontent.com/40266/47967518-67556f00-e05e-11e8-857d-1173a9da955c.png" align="left" width="32%" />
 <img src="https://user-images.githubusercontent.com/40266/47967520-691f3280-e05e-11e8-838a-83706df2edb0.png" align="left" width="22%" />
 
-NodeMCU | Radio | Color
--- | -- | --
-GND | GND | Black
-3V3 | VCC | Red
-D2 (GPIO4) | CE | Orange
-D8 (GPIO15) | CSN/CS | Yellow
-D5 (GPIO14) | SCK | Green
-D7 (GPIO13) | MOSI | Blue
-D6 (GPIO12) | MISO | Violet
+On a Wemos D1 mini:
+
+|Wemos GPIO |NRF24  |
+|-----------|-------|
+|D0 GPIO16  |CE     |
+|D5 GPIO14  |SCK    |
+|D6 GPIO12  |MISO   |
+|D7 GPIO13  |MOSI   |
+|D8 GPIO15  |CSN    |
+
+* Do not mount the NRF24 and ESP12 antennas against each other. This will cause bad performance and crashes
 
 _Image source: [MySensors.org](https://mysensors.org)_
-
 
 ##### LT8900
 
@@ -77,62 +108,22 @@ Connect SPI pins (CE, SCK, MOSI, MISO) to appropriate SPI pins on the ESP8266. W
 The goal here is to flash your ESP with the firmware. It's really easy to do this with [PlatformIO](http://platformio.org/):
 
 ```
-export ESP_BOARD=nodemcuv2
+export ESP_BOARD=d1_mini
 platformio run -e $ESP_BOARD --target upload
 ```
 
-Of course make sure to substitute `nodemcuv2` with the board that you're using.
+Of course make sure to substitute `d1_mini` with the board that you're using.
 
-You can find pre-compiled firmware images on the [releases](https://github.com/sidoh/esp8266_milight_hub/releases).
 
 #### Configure WiFi
 
-This project uses [WiFiManager](https://github.com/tzapu/WiFiManager) to avoid the need to hardcode AP credentials in the firmware.
-
-When the ESP powers on, you should be able to see a network named "ESPXXXXX", with XXXXX being an identifier for your ESP. Connect to this AP and a window should pop up prompting you to enter WiFi credentials.  If your board has a built-in LED (or you wire up an LED), it will [flash to indicate the status](#led-status).
-
-The network password is "**milightHub**".
-
-#### Get IP Address
-
-Both mDNS and SSDP are supported.
-
-* OS X - you should be able to navigate to http://milight-hub.local.
-* Windows - you should see a device called "ESP8266 MiLight Gateway" show up in your network explorer.
-* Linux users can install [avahi](http://www.avahi.org/) (`sudo apt-get install avahi-daemon` on Ubuntu), and should then be able to navigate to http://milight-hub.local.
+Configure the Wifi and Mesh settings in the header of main.cpp and in /src/credentials.h, see /src/credentials.h.example
 
 #### Use it!
 
 The HTTP endpoints (shown below) will be fully functional at this point. You should also be able to navigate to `http://<ip_of_esp>`, or `http://milight-hub.local` if your client supports mDNS. The UI should look like this:
 
 ![Web UI](https://user-images.githubusercontent.com/589893/39412360-0d95ab2e-4bd0-11e8-915c-7fef7ee38761.png)
-
-
-If it does not work as expected see [Troubleshooting](https://github.com/sidoh/esp8266_milight_hub/wiki/Troubleshooting).
-
-#### Pair Bulbs
-
-If you need to pair some bulbs, how to do this is [described in the wiki](https://github.com/sidoh/esp8266_milight_hub/wiki/Pairing-new-bulbs).
-
-## LED Status
-
-Some ESP boards have a built-in LED, on pin #2.  This LED will flash to indicate the current status of the hub:
-
-* Wifi not configured: Fast flash (on/off once per second).  See [Configure Wifi](#configure-wifi) to configure the hub.
-* Wifi connected and ready: Occasional blips of light (a flicker of light every 1.5 seconds).
-* Packets sending/receiving: Rapid blips of light for brief periods (three rapid flashes).
-* Wifi failed to configure: Solid light.
-
-In the setup UI, you can turn on "enable_solid_led" to change the LED behavior to:
-
-* Wifi connected and ready: Solid LED light
-* Wifi failed to configure: Light off
-
-Note that you must restart the hub to affect the change in "enable_solid_led".
-
-You can configure the LED pin from the web console.  Note that pin means the GPIO number, not the D number ... for example, D2 is actually GPIO4 and therefore its pin 4.  If you specify the pin as a negative number, it will invert the LED signal (the built-in LED on pin 2 is inverted, so the default is -2).
-
-If you want to wire up your own LED on a pin, such as on D2/GPIO4, put a wire from D2 to one side of a 220 ohm resister.  On the other side, connect it to the positive side (the longer wire) of a 3.3V LED.  Then connect the negative side of the LED (the shorter wire) to ground.  If you use a different voltage LED, or a high current LED, you will need to add a driver circuit.
 
 ## REST endpoints
 
@@ -283,16 +274,6 @@ You can select which fields should be included in state updates by configuring t
 1. `color` / `computed_color` - behaves the same when bulb is in rgb mode.  `computed_color` will send RGB = 255,255,255 when in white mode.  This is useful for HomeAssistant where it always expects the color to be set.
 1. `oh_color` - same as `color` with a format compatible with [OpenHAB's colorRGB channel type](https://www.openhab.org/addons/bindings/mqtt.generic/#channel-type-colorrgb-colorhsb).
 1. `device_id` / `device_type` / `group_id` - this information is in the MQTT topic or REST route, but can be included in the payload in the case that processing the topic or route is more difficult.
-
-#### Client Status
-
-To receive updates when the MQTT client connects or disconnects from the broker, confugre the `mqtt_client_status_topic` parameter.  A message of the following form will be published:
-
-```json
-{"status":"disconnected_unclean","firmware":"milight-hub","version":"1.9.0-rc3","ip_address":"192.168.1.111","reset_reason":"External System"}
-```
-
-If you wish to have the simple messages `connected` and `disconnected` instead of the above environmental data, configure `simple_mqtt_client_status` to `true` (or set Client Status Message Mode to "Simple" in the Web UI).
 
 ## UDP Gateways
 

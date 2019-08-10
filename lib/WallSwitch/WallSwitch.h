@@ -5,15 +5,17 @@
 #include <MiLightRadioConfig.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
-#include <MqttClient.h>
 
 //DS18B20 sensor
 #define ONE_WIRE_BUS D4
 
 class WallSwitch {
 public:
-  WallSwitch(Settings& settings, MiLightClient*& milightClient, GroupStateStore*& stateStore, MqttClient& mqttClient);
+  WallSwitch(Settings& settings, MiLightClient*& milightClient, GroupStateStore*& stateStore, const char* inTopic, const char* outTopic);
   ~WallSwitch();
+
+  std::function<void(const char *topic, const char *msg, const bool retain)> callback;
+  void setCallback(std::function<void(const char *topic, const char *msg, const bool retain)> _callback);
 
   void begin();
   void loop(bool standAloneAP);
@@ -23,7 +25,8 @@ private:
   const MiLightRemoteConfig* remoteConfig;
   Settings& settings;
   GroupStateStore*& stateStore;
-  MqttClient& mqttClient;
+  const char *inTopic;
+  const char *outTopic;
 
   OneWire oneWire;
   DallasTemperature sensors;

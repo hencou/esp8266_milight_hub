@@ -1,4 +1,4 @@
-#include <RichHttpServer.h>
+#include <WebServer.h>
 #include <MiLightClient.h>
 #include <Settings.h>
 #include <WebSocketsServer.h>
@@ -12,23 +12,21 @@
 typedef std::function<void(void)> SettingsSavedHandler;
 typedef std::function<void(const BulbId& id)> GroupDeletedHandler;
 
-using RichHttpConfig = RichHttp::Generics::Configs::EspressifBuiltin;
-using RequestContext = RichHttpConfig::RequestContextType;
-
 const char TEXT_PLAIN[] PROGMEM = "text/plain";
 const char APPLICATION_JSON[] = "application/json";
 
 class MiLightHttpServer {
 public:
   MiLightHttpServer(Settings& settings, MiLightClient*& milightClient, GroupStateStore*& stateStore)
-    : authProvider(settings)
-    , server(80, authProvider)
-    , wsServer(WebSocketsServer(81))
-    , numWsClients(0)
-    , milightClient(milightClient)
-    , settings(settings)
-    , stateStore(stateStore)
-  { }
+    : server(80),
+      wsServer(WebSocketsServer(81)),
+      numWsClients(0),
+      milightClient(milightClient),
+      settings(settings),
+      stateStore(stateStore)
+  {
+    this->applySettings(settings);
+  }
 
   void begin();
   void handleClient();
@@ -39,35 +37,37 @@ public:
   WiFiClient client();
 
 protected:
-
-  bool serveFile(const char* file, const char* contentType = "text/html");
-  void handleServe_P(const char* data, size_t length);
-  void sendGroupState(BulbId& bulbId, GroupState* state, RichHttp::Response& response);
+  ESP8266WebServer::THandlerFunction handleServeFile(
+    const char* filename,
+    const char* contentType,
+    const char* defaultText = NULL);
 
   void serveSettings();
-  void handleUpdateSettings(RequestContext& request);
-  void handleUpdateSettingsPost(RequestContext& request);
-  void handleUpdateFile(const char* filename);
+  bool serveFile(const char* file, const char* contentType = "text/html");
+  ESP8266WebServer::THandlerFunction handleUpdateFile(const char* filename);
+  ESP8266WebServer::THandlerFunction handleServe_P(const char* data, size_t length);
+  void applySettings(Settings& settings);
+  void sendGroupState(BulbId& bulbId, GroupState* state);
 
-  void handleGetRadioConfigs(RequestContext& request);
-
-  void handleAbout(RequestContext& request);
-  void handleSystemPost(RequestContext& request);
+  void handleUpdateSettings();
+  void handleUpdateSettingsPost();
+  void handleGetRadioConfigs();
+  void handleAbout();
+  void handleSystemPost();
   void handleFirmwareUpload();
   void handleFirmwarePost();
-  void handleListenGateway(RequestContext& request);
-  void handleSendRaw(RequestContext& request);
-  void handleUpdateGroup(RequestContext& request);
-  void handleDeleteGroup(RequestContext& request);
-  void handleGetGroup(RequestContext& request);
+  void handleListenGateway(const UrlTokenBindings* urlBindings);
+  void handleSendRaw(const UrlTokenBindings* urlBindings);
+  void handleUpdateGroup(const UrlTokenBindings* urlBindings);
+  void handleDeleteGroup(const UrlTokenBindings* urlBindings);
+  void handleGetGroup(const UrlTokenBindings* urlBindings);
 
   void handleRequest(const JsonObject& request);
   void handleWsEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length);
 
   File updateFile;
 
-  PassthroughAuthProvider<Settings> authProvider;
-  RichHttpServer<RichHttp::Generics::Configs::EspressifBuiltin> server;
+  WebServer server;
   WebSocketsServer wsServer;
   size_t numWsClients;
   MiLightClient*& milightClient;
