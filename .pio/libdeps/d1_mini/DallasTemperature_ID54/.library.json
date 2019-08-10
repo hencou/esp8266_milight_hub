@@ -1,0 +1,64 @@
+{
+    "name": "DallasTemperature", 
+    "keywords": [
+        "onewire", 
+        "1-wire", 
+        "bus", 
+        "sensor", 
+        "temperature"
+    ], 
+    "description": "Arduino Library for Dallas Temperature ICs (DS18B20, DS18S20, DS1822, DS1820)", 
+    "repository": {
+        "type": "git", 
+        "url": "https://github.com/milesburton/Arduino-Temperature-Control-Library.git"
+    }, 
+    "authors": [
+        {
+            "email": "miles@mnetcs.com", 
+            "url": "http://www.milesburton.com", 
+            "maintainer": true, 
+            "name": "Miles Burton"
+        }, 
+        {
+            "email": "nuisance@casualhacker.net", 
+            "url": null, 
+            "maintainer": false, 
+            "name": "Tim Newsome"
+        }, 
+        {
+            "email": "gfbarros@bappos.com", 
+            "url": null, 
+            "maintainer": false, 
+            "name": "Guil Barros"
+        }, 
+        {
+            "email": "rob.tillaart@gmail.com", 
+            "url": null, 
+            "maintainer": false, 
+            "name": "Rob Tillaart"
+        }
+    ], 
+    "dependencies": {
+        "name": "OneWire", 
+        "authors": "Paul Stoffregen", 
+        "frameworks": "arduino"
+    }, 
+    "version": "3.8.0", 
+    "frameworks": [
+        "arduino"
+    ], 
+    "platforms": [
+        "atmelavr", 
+        "atmelsam", 
+        "espressif32", 
+        "espressif8266", 
+        "intel_arc32", 
+        "microchippic32", 
+        "nordicnrf51", 
+        "nordicnrf52", 
+        "ststm32", 
+        "teensy", 
+        "timsp430"
+    ], 
+    "id": 54
+}
