@@ -1,9 +1,15 @@
 #include <MiLightClient.h>
 #include <Settings.h>
+#include <PubSubClient.h>
+#include <WiFiClient.h>
 #include <MiLightRadioConfig.h>
 
 #ifndef MQTT_CONNECTION_ATTEMPT_FREQUENCY
 #define MQTT_CONNECTION_ATTEMPT_FREQUENCY 5000
+#endif
+
+#ifndef MQTT_PACKET_CHUNK_SIZE
+#define MQTT_PACKET_CHUNK_SIZE 128
 #endif
 
 #ifndef _MQTT_CLIENT_H
@@ -11,23 +17,28 @@
 
 class MqttClient {
 public:
-  MqttClient(Settings& settings, MiLightClient*& milightClient, const char* outTopic);
+  MqttClient(Settings& settings, MiLightClient*& milightClient);
   ~MqttClient();
 
-  //<added by HC>
-  std::function<void(const char *topic, const char *msg, const bool retain)> callback;
-  void setCallback(std::function<void(const char *topic, const char *msg, const bool retain)> _callback);
-  void fromMeshCallback(const char *topic, const char *msg);
-  //</added by HC>
-
+  void begin();
+  void handleClient();
+  void reconnect();
   void sendUpdate(const MiLightRemoteConfig& remoteConfig, uint16_t deviceId, uint16_t groupId, const char* update);
   void sendState(const MiLightRemoteConfig& remoteConfig, uint16_t deviceId, uint16_t groupId, const char* update);
+  void send(const char* topic, const char* message, const bool retain = false);
 
 private:
+  WiFiClient tcpClient;
+  PubSubClient mqttClient;
   MiLightClient*& milightClient;
   Settings& settings;
-  const char* outTopic;
+  char* domain;
+  unsigned long lastConnectAttempt;
+
   void sendBirthMessage();
+  bool connect();
+  void subscribe();
+  void publishCallback(char* topic, byte* payload, int length);
   void publish(
     const String& topic,
     const MiLightRemoteConfig& remoteConfig,
@@ -43,6 +54,8 @@ private:
     const uint16_t deviceId,
     const uint16_t groupId
   );
+
+  String generateConnectionStatusMessage(const char* status);
 };
 
 #endif

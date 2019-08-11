@@ -189,7 +189,7 @@ MiLightStatus CctPacketFormatter::cctCommandToStatus(uint8_t command) {
   }
 }
 
-BulbId CctPacketFormatter::parsePacket(const uint8_t* packet, JsonObject& result) {
+BulbId CctPacketFormatter::parsePacket(const uint8_t* packet, JsonObject result) {
   uint8_t command = packet[CCT_COMMAND_INDEX] & 0x7F;
 
   uint8_t onOffGroupId = cctCommandIdToGroup(command);
@@ -199,7 +199,10 @@ BulbId CctPacketFormatter::parsePacket(const uint8_t* packet, JsonObject& result
     REMOTE_TYPE_CCT
   );
 
-  if (onOffGroupId < 255) {
+  // Night mode
+  if (command & 0x10) {
+    result["command"] = "night_mode";
+  } else if (onOffGroupId < 255) {
     result["state"] = cctCommandToStatus(command) == ON ? "ON" : "OFF";
   } else if (command == CCT_BRIGHTNESS_DOWN) {
     result["command"] = "brightness_down";

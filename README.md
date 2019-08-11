@@ -275,6 +275,16 @@ You can select which fields should be included in state updates by configuring t
 1. `oh_color` - same as `color` with a format compatible with [OpenHAB's colorRGB channel type](https://www.openhab.org/addons/bindings/mqtt.generic/#channel-type-colorrgb-colorhsb).
 1. `device_id` / `device_type` / `group_id` - this information is in the MQTT topic or REST route, but can be included in the payload in the case that processing the topic or route is more difficult.
 
+#### Client Status
+
+To receive updates when the MQTT client connects or disconnects from the broker, confugre the `mqtt_client_status_topic` parameter.  A message of the following form will be published:
+
+```json
+{"status":"disconnected_unclean","firmware":"milight-hub","version":"1.9.0-rc3","ip_address":"192.168.1.111","reset_reason":"External System"}
+```
+
+If you wish to have the simple messages `connected` and `disconnected` instead of the above environmental data, configure `simple_mqtt_client_status` to `true` (or set Client Status Message Mode to "Simple" in the Web UI).
+
 ## UDP Gateways
 
 You can add an arbitrary number of UDP gateways through the REST API or through the web UI. Each gateway server listens on a port and responds to the standard set of commands supported by the Milight protocol. This should allow you to use one of these with standard Milight integrations (SmartThings, Home Assistant, OpenHAB, etc.).

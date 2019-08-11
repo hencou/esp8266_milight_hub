@@ -9,12 +9,11 @@
 #include <DallasTemperature.h>
 #include <ESP8266Wifi.h>
 
-WallSwitch::WallSwitch(Settings& settings, MiLightClient*& milightClient, GroupStateStore*& stateStore, const char *inTopic, const char *outTopic)
+WallSwitch::WallSwitch(Settings& settings, MiLightClient*& milightClient, GroupStateStore*& stateStore, MqttClient& mqttClient)
   : milightClient(milightClient),
     settings(settings),
     stateStore(stateStore),
-    inTopic(inTopic),
-    outTopic(outTopic),
+    mqttClient(mqttClient),
     oneWire(ONE_WIRE_BUS),
     sensors(&oneWire)
 {
@@ -23,17 +22,13 @@ WallSwitch::WallSwitch(Settings& settings, MiLightClient*& milightClient, GroupS
 WallSwitch::~WallSwitch() {
 }
 
-void WallSwitch::setCallback(std::function<void(const char *topic, const char *msg, const bool retain)> _callback) {
-    callback = _callback;
-}
-
 void WallSwitch::begin() {
 
   //begin DS18B20 sensor
   sensors.setResolution(12);
   sensors.begin();
 
-  if (settings.numGatewayConfigs > 0) {
+  if (settings.gatewayConfigs.size() > 0) {
 
     remoteConfig = MiLightRemoteConfig::fromType("rgb_cct");
     // Set button input pins
@@ -51,7 +46,7 @@ void WallSwitch::begin() {
 void WallSwitch::loop(bool standAloneAP) {
 
 //Get button event and act accordingly when UDP gateway configured
-  if (settings.numGatewayConfigs > 0) {
+  if (settings.gatewayConfigs.size() > 0) {
 
     //Startup with all lamps off
     doLightState();
@@ -72,9 +67,9 @@ void WallSwitch::loop(bool standAloneAP) {
     lastMsg = millis();
     char topic[128];
     char msg[64];
-    snprintf(topic, sizeof(topic), "%sstate/%s/heap", outTopic, WiFi.macAddress().c_str());
+    snprintf(topic, sizeof(topic), "state/%s/heap", WiFi.macAddress().c_str());
     snprintf(msg, sizeof(msg), "%d", ESP.getFreeHeap());
-    callback(topic, msg, false);
+    mqttClient.send(topic, msg, false);
 
     //send the DS18B20 temperature if available
     int deviceCount = sensors.getDeviceCount();
@@ -83,9 +78,9 @@ void WallSwitch::loop(bool standAloneAP) {
 
     sensors.requestTemperatures();
     if (deviceCount > 0) {
-      snprintf(topic, sizeof(topic), "%sstate/%s/temperature", outTopic, WiFi.macAddress().c_str());
+      snprintf(topic, sizeof(topic), "state/%s/temperature", WiFi.macAddress().c_str());
       dtostrf(sensors.getTempCByIndex(0),5, 2, msg);
-      callback(topic, msg, false);
+      mqttClient.send(topic, msg, false);
     }
   }
 }
@@ -249,16 +244,15 @@ void WallSwitch::sendMQTTCommand(uint8_t id)
   BulbId bulbId(settings.gatewayConfigs[0]->deviceId, id + 1, remoteConfig->type);
 
   char buffer[200];
-  StaticJsonBuffer<200> jsonBuffer;
-  JsonObject &message = jsonBuffer.createObject();
+  StaticJsonDocument<200> json;
+  JsonObject message = json.to<JsonObject>();
 
   GroupState* groupState = stateStore->get(bulbId);
-  groupState->applyState(message, bulbId, settings.groupStateFields, settings.numGroupStateFields);
+  groupState->applyState(message, bulbId, settings.groupStateFields);
 
-  message.printTo(buffer);
+  serializeJson(message, buffer);
 
-  String topic = String(inTopic) + String(settings.mqttTopicPattern);
-
+  String topic = settings.mqttTopicPattern;
   String deviceIdStr = String(bulbId.deviceId, 16);
   deviceIdStr.toUpperCase();
 
@@ -270,8 +264,8 @@ void WallSwitch::sendMQTTCommand(uint8_t id)
     Serial.printf("WallSwitch - send message to topic: %s : %s\r\n", topic.c_str(), buffer);
   #endif
 
-  //send command to mesh_in/milight/xxx/xxx/x
-  callback(topic.c_str(), buffer, false);
+  //send command to milight/xxx/xxx/x
+  mqttClient.send(topic.c_str(), buffer, false);
 }
 
 //handle actions based on LDR state
@@ -358,7 +352,7 @@ void WallSwitch::doDayNight()
 
 void WallSwitch::detectMotion() {
 
-  if (lastAnalogRead + 100 < millis())
+  if (lastAnalogRead + 500 < millis())
   {
     lastAnalogRead = millis();
     motionLevel = analogRead(A0);
@@ -370,20 +364,20 @@ void WallSwitch::detectMotion() {
     firstMotion = millis();
   }
 
-  if (motion == true && motionState == false && (millis() - firstMotion) > 2200) {
+  if (motion == true && motionState == false && (millis() - firstMotion) > 1000) {
     motionState = true;
 
-    char topic[128];
-    snprintf(topic, sizeof(topic), "%sstate/%s/motion", outTopic, WiFi.macAddress().c_str());
-    callback(topic, "ON", false);
+    char topic[128];    
+    snprintf(topic, sizeof(topic), "state/%s/motion", WiFi.macAddress().c_str());
+    mqttClient.send(topic, "ON", false);
   }
 
   if (motion == false && motionState == true) {
     motionState = false;
 
     char topic[128];
-    snprintf(topic, sizeof(topic), "%sstate/%s/motion", outTopic, WiFi.macAddress().c_str());
-    callback(topic, "OFF", false);
+    snprintf(topic, sizeof(topic), "state/%s/motion", WiFi.macAddress().c_str());
+    mqttClient.send(topic, "OFF", false);
   }
   previousMotion = motion;
 }

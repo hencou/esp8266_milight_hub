@@ -12,7 +12,7 @@
         "type": "git", 
         "url": "https://github.com/bblanchon/ArduinoJson.git"
     }, 
-    "version": "5.13.4", 
+    "version": "6.10.1", 
     "authors": [
         {
             "email": null, 
@@ -34,6 +34,7 @@
         "nordicnrf51", 
         "nordicnrf52", 
         "ststm32", 
+        "ststm8", 
         "teensy", 
         "timsp430"
     ], 

@@ -6,10 +6,16 @@
 #include <RF24Channel.h>
 #include <Size.h>
 #include <LEDStatus.h>
+#include <AuthProviders.h>
 #include <vector>
+#include <memory>
 
 #ifndef _SETTINGS_H_INCLUDED
 #define _SETTINGS_H_INCLUDED
+
+#ifndef MILIGHT_HUB_SETTINGS_BUFFER_SIZE
+#define MILIGHT_HUB_SETTINGS_BUFFER_SIZE 4096
+#endif
 
 #define XQUOTE(x) #x
 #define QUOTE(x) XQUOTE(x)
@@ -52,22 +58,17 @@ enum RadioInterfaceType {
   LT8900 = 1,
 };
 
-static const GroupStateField DEFAULT_GROUP_STATE_FIELDS[] = {
+static const std::vector<GroupStateField> DEFAULT_GROUP_STATE_FIELDS({
   GroupStateField::STATE,
   GroupStateField::BRIGHTNESS,
   GroupStateField::COMPUTED_COLOR,
   GroupStateField::MODE,
   GroupStateField::COLOR_TEMP,
   GroupStateField::BULB_MODE
-};
+});
 
-class GatewayConfig {
-public:
-  GatewayConfig(uint16_t deviceId, uint16_t port, uint8_t protocolVersion)
-    : deviceId(deviceId),
-      port(port),
-      protocolVersion(protocolVersion)
-    { }
+struct GatewayConfig {
+  GatewayConfig(uint16_t deviceId, uint16_t port, uint8_t protocolVersion);
 
   const uint16_t deviceId;
   const uint16_t port;
@@ -85,21 +86,16 @@ public:
     resetPin(0),
     ledPin(-2),
     radioInterfaceType(nRF24),
-    deviceIds(NULL),
-    gatewayConfigs(NULL),
-    numDeviceIds(0),
-    numGatewayConfigs(0),
     packetRepeats(50),
     httpRepeatFactor(1),
     listenRepeats(3),
     discoveryPort(48899),
+    simpleMqttClientStatus(false),
     stateFlushInterval(10000),
     mqttStateRateLimit(500),
     packetRepeatThrottleThreshold(200),
     packetRepeatThrottleSensitivity(0),
     packetRepeatMinimum(3),
-    groupStateFields(NULL),
-    numGroupStateFields(0),
     enableAutomaticModeSwitching(false),
     ledModeWifiConfig(LEDStatus::LEDMode::FastToggle),
     ledModeWifiFailed(LEDStatus::LEDMode::On),
@@ -109,27 +105,20 @@ public:
     hostname("milight-hub"),
     rf24PowerLevel(RF24PowerLevelHelpers::defaultValue()),
     rf24Channels(RF24ChannelHelpers::allValues()),
+    groupStateFields(DEFAULT_GROUP_STATE_FIELDS),
     rf24ListenChannel(RF24Channel::RF24_LOW),
     _autoRestartPeriod(0)
-  {
-    if (groupStateFields == NULL) {
-      numGroupStateFields = size(DEFAULT_GROUP_STATE_FIELDS);
-      groupStateFields = new GroupStateField[numGroupStateFields];
-      memcpy(groupStateFields, DEFAULT_GROUP_STATE_FIELDS, numGroupStateFields * sizeof(GroupStateField));
-    }
-  }
+  { }
 
-  ~Settings() {
-    if (deviceIds) {
-      delete deviceIds;
-    }
-  }
+  ~Settings() { }
 
-  bool hasAuthSettings();
+  bool isAuthenticationEnabled() const;
+  const String& getUsername() const;
+  const String& getPassword() const;
+
   bool isAutoRestartEnabled();
   size_t getAutoRestartPeriod();
 
-  static void deserialize(Settings& settings, String json);
   static void load(Settings& settings);
 
   static RadioInterfaceType typeFromString(const String& s);
@@ -138,11 +127,10 @@ public:
 
   void save();
   String toJson(const bool prettyPrint = true);
-  void serialize(Stream& stream, const bool prettyPrint = false);
-  void updateDeviceIds(JsonArray& arr);
-  void updateGatewayConfigs(JsonArray& arr);
-  void updateGroupStateFields(JsonArray& arr);
-  void patch(JsonObject& obj);
+  void serialize(Print& stream, const bool prettyPrint = false);
+  void updateDeviceIds(JsonArray arr);
+  void updateGatewayConfigs(JsonArray arr);
+  void patch(JsonObject obj);
   String mqttServer();
   uint16_t mqttPort();
 
@@ -153,10 +141,6 @@ public:
   uint8_t resetPin;
   int8_t ledPin;
   RadioInterfaceType radioInterfaceType;
-  uint16_t *deviceIds;
-  GatewayConfig **gatewayConfigs;
-  size_t numDeviceIds;
-  size_t numGatewayConfigs;
   size_t packetRepeats;
   size_t httpRepeatFactor;
   uint8_t listenRepeats;
@@ -167,16 +151,13 @@ public:
   String mqttTopicPattern;
   String mqttUpdateTopicPattern;
   String mqttStateTopicPattern;
-  String mqttLwtTopic;
-  String mqttLwtMessage;
-  String mqttBirthTopic;
+  String mqttClientStatusTopic;
+  bool simpleMqttClientStatus;
   size_t stateFlushInterval;
   size_t mqttStateRateLimit;
   size_t packetRepeatThrottleThreshold;
   size_t packetRepeatThrottleSensitivity;
   size_t packetRepeatMinimum;
-  GroupStateField *groupStateFields;
-  size_t numGroupStateFields;
   bool enableAutomaticModeSwitching;
   LEDStatus::LEDMode ledModeWifiConfig;
   LEDStatus::LEDMode ledModeWifiFailed;
@@ -185,20 +166,23 @@ public:
   size_t ledModePacketCount;
   String hostname;
   RF24PowerLevel rf24PowerLevel;
+  std::vector<uint16_t> deviceIds;
   std::vector<RF24Channel> rf24Channels;
+  std::vector<GroupStateField> groupStateFields;
+  std::vector<std::shared_ptr<GatewayConfig>> gatewayConfigs;
   RF24Channel rf24ListenChannel;
   String wifiStaticIP;
   String wifiStaticIPNetmask;
   String wifiStaticIPGateway;
 
-
 protected:
   size_t _autoRestartPeriod;
 
   template <typename T>
-  void setIfPresent(JsonObject& obj, const char* key, T& var) {
+  void setIfPresent(JsonObject obj, const char* key, T& var) {
     if (obj.containsKey(key)) {
-      var = obj.get<T>(key);
+      JsonVariant val = obj[key];
+      var = val.as<T>();
     }
   }
 };
