@@ -140,12 +140,10 @@ void WallSwitch::checkButton(int buttonPin, uint8_t id) {
 //handle short clicks
 void WallSwitch::doShortClicks(uint8_t id)
 {
-  milightClient->setResendCount(settings.packetRepeats * 2);
   milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, id + 1);
 
   if (shortClicks[id] == 1)
   {
-    //milightClient->updateStatus(stateStore->get(bulbId).getState() ? ON : OFF);
     milightClient->updateStatus(OFF);
   }
   if (shortClicks[id] == 2)
@@ -178,10 +176,7 @@ void WallSwitch::doLongClicks(uint8_t id)
   //set lamps on before raising brightness and initialize raising state
   if (initLongClick[id])
   {
-    milightClient->setResendCount(settings.packetRepeats * 2);
-    milightClient->updateStatus(ON);
-    milightClient->setResendCount(settings.packetRepeats);
-
+   
     uint8_t brightness = stateStore->get(bulbId)->getBrightness();
     if (brightness > 90) {raisingBrightness[id] = false;}
     if (brightness < 10) {raisingBrightness[id] = true;}
@@ -197,6 +192,9 @@ void WallSwitch::doLongClicks(uint8_t id)
     return;
   }
   millis_repeat[id] = millis();
+
+  //send always an ON command to ensure the lamp is on
+  milightClient->updateStatus(ON);
 
   //Brightness
   if (shortClicks[id] == 0)
@@ -243,29 +241,35 @@ void WallSwitch::sendMQTTCommand(uint8_t id)
 {
   BulbId bulbId(settings.gatewayConfigs[0]->deviceId, id + 1, remoteConfig->type);
 
-  char buffer[200];
-  StaticJsonDocument<200> json;
-  JsonObject message = json.to<JsonObject>();
+  StaticJsonDocument<200> buffer;
+  JsonObject result = buffer.to<JsonObject>();
 
   GroupState* groupState = stateStore->get(bulbId);
-  groupState->applyState(message, bulbId, settings.groupStateFields);
+  const GroupState stateUpdates(groupState, result);
 
-  serializeJson(message, buffer);
+	if (groupState != NULL) {
+	  groupState->patch(stateUpdates);
+    stateStore->set(bulbId, stateUpdates);
+	}
+
+  char output[200];
+  serializeJson(result, output);
 
   String topic = settings.mqttTopicPattern;
-  String deviceIdStr = String(bulbId.deviceId, 16);
-  deviceIdStr.toUpperCase();
+  String hexDeviceId = bulbId.getHexDeviceId();
 
-  topic.replace(":device_id", String("0x") + deviceIdStr);
+  topic.replace(":device_id", hexDeviceId);
+  topic.replace(":hex_device_id", hexDeviceId);
+  topic.replace(":dec_device_id", String(bulbId.deviceId));
+  topic.replace(":device_type", MiLightRemoteTypeHelpers::remoteTypeToString(bulbId.deviceType));
   topic.replace(":group_id", String(bulbId.groupId));
-  topic.replace(":device_type", remoteConfig->name);
 
   #ifdef MQTT_DEBUG
-    Serial.printf("WallSwitch - send message to topic: %s : %s\r\n", topic.c_str(), buffer);
+    Serial.printf("WallSwitch - send message to topic: %s : %s\r\n", topic.c_str(), output);
   #endif
 
   //send command to milight/xxx/xxx/x
-  mqttClient.send(topic.c_str(), buffer, false);
+  mqttClient.send(topic.c_str(), output, false);
 }
 
 //handle actions based on LDR state
@@ -311,8 +315,6 @@ void WallSwitch::doDayNight()
     Serial.println(F("LDR triggered night condition, turn lamps on..."));
     nightTime = millis()/1000;
 
-    milightClient->setResendCount(settings.packetRepeats * 2);
-
     milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 1); //zithoek
     milightClient->updateStatus(ON);
     milightClient->updateTemperature(100);
@@ -334,7 +336,6 @@ void WallSwitch::doDayNight()
     Serial.println(F("Nightmode timeout, turn light in nightmode"));
     isMidNight = true;
 
-    milightClient->setResendCount(settings.packetRepeats * 2);
     milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 4); //outdoor light
     milightClient->enableNightMode();
   }
@@ -342,7 +343,6 @@ void WallSwitch::doDayNight()
   if (previousNight == true && isNight == false){
     Serial.println(F("LDR triggered day condition, turn lamps off..."));
 
-    milightClient->setResendCount(settings.packetRepeats * 2);
     milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 0); //all lamps off
     milightClient->updateStatus(OFF);
   }
@@ -390,7 +390,6 @@ void WallSwitch::doLightState() {
 
     isStartUp = false;
 
-    milightClient->setResendCount(settings.packetRepeats * 10);
     milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 0);
     milightClient->updateTemperature(100);
     milightClient->updateStatus(OFF);

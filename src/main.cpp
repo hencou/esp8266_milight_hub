@@ -7,20 +7,25 @@
 #include <IntParsing.h>
 #include <Size.h>
 #include <LinkedList.h>
+//#include <LEDStatus.h>
 #include <GroupStateStore.h>
 #include <MiLightRadioConfig.h>
 #include <MiLightRemoteConfig.h>
 #include <MiLightHttpServer.h>
+#include <MiLightRemoteType.h>
 #include <Settings.h>
-//#include <MiLightUdpServer.h> //not needed save memory causes crashes
+//#include <MiLightUdpServer.h>
 #include <ESP8266mDNS.h>
-//#include <ESP8266SSDP.h> //not needed save memory causes crashes
+//#include <ESP8266SSDP.h>
 #include <MqttClient.h>
 #include <RGBConverter.h>
-//#include <MiLightDiscoveryServer.h> //not needed save memory causes crashes
+//#include <MiLightDiscoveryServer.h>
 #include <MiLightClient.h>
 #include <BulbStateUpdater.h>
-//#include <LEDStatus.h> //not needed save memory causes crashes
+#include <RadioSwitchboard.h>
+#include <PacketSender.h>
+#include <HomeAssistantDiscoveryClient.h>
+#include <TransitionController.h>
 //<Added by HC>
 #include <WallSwitch.h>
 #include <credentials.h>
@@ -34,6 +39,7 @@
 const char*  wifi_ssid    = WIFI_SSID;
 const char*  wifi_password    = WIFI_PASSWORD;
 //</Added by HC>
+// static LEDStatus *ledStatus;
 
 Settings settings;
 
@@ -47,14 +53,48 @@ long wifiOfflineTime = 0;
 //</Added by HC>
 
 MiLightClient* milightClient = NULL;
+RadioSwitchboard* radios = nullptr;
+PacketSender* packetSender = nullptr;
 std::shared_ptr<MiLightRadioFactory> radioFactory;
 MiLightHttpServer *httpServer = NULL;
 MqttClient* mqttClient = NULL;
+//MiLightDiscoveryServer* discoveryServer = NULL;
 uint8_t currentRadioType = 0;
 
 // For tracking and managing group state
 GroupStateStore* stateStore = NULL;
 BulbStateUpdater* bulbStateUpdater = NULL;
+TransitionController transitions;
+
+// int numUdpServers = 0;
+// std::vector<std::shared_ptr<MiLightUdpServer>> udpServers;
+// WiFiUDP udpSeder;
+
+// /**
+//  * Set up UDP servers (both v5 and v6).  Clean up old ones if necessary.
+//  */
+// void initMilightUdpServers() {
+//   udpServers.clear();
+
+//   for (size_t i = 0; i < settings.gatewayConfigs.size(); ++i) {
+//     const GatewayConfig& config = *settings.gatewayConfigs[i];
+
+//     std::shared_ptr<MiLightUdpServer> server = MiLightUdpServer::fromVersion(
+//       config.protocolVersion,
+//       milightClient,
+//       config.port,
+//       config.deviceId
+//     );
+
+//     if (server == NULL) {
+//       Serial.print(F("Error creating UDP server with protocol version: "));
+//       Serial.println(config.protocolVersion);
+//     } else {
+//       udpServers.push_back(std::move(server));
+//       udpServers[i]->begin();
+//     }
+//   }
+// }
 
 /**
  * Milight RF packet handler.
@@ -67,6 +107,9 @@ void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
   JsonObject result = buffer.to<JsonObject>();
 
   BulbId bulbId = config.packetFormatter->parsePacket(packet, result);
+
+  // set LED mode for a packet movement
+  // ledStatus->oneshot(settings.ledModePacket, settings.ledModePacketCount);
 
   if (&bulbId == &DEFAULT_BULB_ID) {
     Serial.println(F("Skipping packet handler because packet was not decoded"));
@@ -84,10 +127,10 @@ void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
   		Serial.println(F("onPacketSentHandler - update the status of groups for the first UDP device\r\n"));
   		#endif
 
-      	// update state to reflect changes from this packet
+      // update state to reflect changes from this packet
   		GroupState* groupState = stateStore->get(bulbId);
 
-		// pass in previous scratch state as well
+		  // pass in previous scratch state as well
   		const GroupState stateUpdates(groupState, result);
 
 	    if (groupState != NULL) {
@@ -120,16 +163,19 @@ void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
  * called.
  */
 void handleListen() {
-  if (! settings.listenRepeats) {
+  // Do not handle listens while there are packets enqueued to be sent
+  // Doing so causes the radio module to need to be reinitialized inbetween
+  // repeats, which slows things down.
+  if (! settings.listenRepeats || packetSender->isSending()) {
     return;
   }
 
-  std::shared_ptr<MiLightRadio> radio = milightClient->switchRadio(currentRadioType++ % milightClient->getNumRadios());
+  std::shared_ptr<MiLightRadio> radio = radios->switchRadio(currentRadioType++ % radios->getNumRadios());
 
   for (size_t i = 0; i < settings.listenRepeats; i++) {
-    if (milightClient->available()) {
+    if (radios->available()) {
       uint8_t readPacket[MILIGHT_MAX_PACKET_LENGTH];
-      size_t packetLen = milightClient->read(readPacket);
+      size_t packetLen = radios->read(readPacket);
 
       const MiLightRemoteConfig* remoteConfig = MiLightRemoteConfig::fromReceivedPacket(
         radio->config(),
@@ -188,6 +234,12 @@ void applySettings() {
   if (stateStore) {
     delete stateStore;
   }
+  if (packetSender) {
+    delete packetSender;
+  }
+  if (radios) {
+    delete radios;
+  }
   if (wallSwitch) {
     delete wallSwitch;
     wallSwitch = NULL;
@@ -201,25 +253,70 @@ void applySettings() {
 
   stateStore = new GroupStateStore(MILIGHT_MAX_STATE_ITEMS, settings.stateFlushInterval);
 
+  radios = new RadioSwitchboard(radioFactory, stateStore, settings);
+  packetSender = new PacketSender(*radios, settings, onPacketSentHandler);
+
   milightClient = new MiLightClient(
-    radioFactory,
+    *radios,
+    *packetSender,
     stateStore,
-    &settings
+    settings,
+    transitions
   );
-  milightClient->begin();
-  milightClient->onPacketSent(onPacketSentHandler);
   milightClient->onUpdateBegin(onUpdateBegin);
   milightClient->onUpdateEnd(onUpdateEnd);
-  milightClient->setResendCount(settings.packetRepeats);
 
   if (settings.mqttServer().length() > 0) {
     mqttClient = new MqttClient(settings, milightClient);
     mqttClient->begin();
+    mqttClient->onConnect([]() {
+      if (settings.homeAssistantDiscoveryPrefix.length() > 0) {
+        HomeAssistantDiscoveryClient discoveryClient(settings, mqttClient);
+        discoveryClient.sendDiscoverableDevices(settings.groupIdAliases);
+        discoveryClient.removeOldDevices(settings.deletedGroupIdAliases);
+
+        settings.deletedGroupIdAliases.clear();
+      }
+    });
+
     bulbStateUpdater = new BulbStateUpdater(settings, *mqttClient, *stateStore);
   }
 
-  //<added by HC>
+  // initMilightUdpServers();
+
+  // if (discoveryServer) {
+  //   delete discoveryServer;
+  //   discoveryServer = NULL;
+  // }
+  // if (settings.discoveryPort != 0) {
+  //   discoveryServer = new MiLightDiscoveryServer(settings);
+  //   discoveryServer->begin();
+  // }
+
+  // // update LED pin and operating mode
+  // if (ledStatus) {
+  //   ledStatus->changePin(settings.ledPin);
+  //   ledStatus->continuous(settings.ledModeOperating);
+  // }
+
   WiFi.hostname(settings.hostname);
+
+  WiFiPhyMode_t wifiMode;
+  switch (settings.wifiMode) {
+    case WifiMode::B:
+      wifiMode = WIFI_PHY_MODE_11B;
+      break;
+    case WifiMode::G:
+      wifiMode = WIFI_PHY_MODE_11G;
+      break;
+    default:
+    case WifiMode::N:
+      wifiMode = WIFI_PHY_MODE_11N;
+      break;
+  }
+  WiFi.setPhyMode(wifiMode);
+  
+  //<added by HC>
   gotIpEventHandler = WiFi.onStationModeGotIP([](const WiFiEventStationModeGotIP& event)
   {
     Serial.print("Station connected, IP: ");
@@ -250,6 +347,10 @@ bool shouldRestart() {
   return settings.getAutoRestartPeriod()*60*1000 < millis();
 }
 
+// // give a bit of time to update the status LED
+// void handleLED() {
+//   ledStatus->handle();
+// }
 // Called when a group is deleted via the REST API.  Will publish an empty message to
 // the MQTT topic to delete retained state
 void onGroupDeleted(const BulbId& id) {
@@ -271,30 +372,42 @@ void setup() {
   Settings::load(settings);
   applySettings();
 
-  // set up the LED status for wifi configuration
-  //ledStatus = new LEDStatus(settings.ledPin);
-  //ledStatus->continuous(settings.ledModeWifiConfig);
+  // // set up the LED status for wifi configuration
+  // ledStatus = new LEDStatus(settings.ledPin);
+  // ledStatus->continuous(settings.ledModeWifiConfig);
 
-  // start up the wifi manager
-  if (! MDNS.begin("milight-hub")) {
-    Serial.println(F("Error setting up MDNS responder"));
-  }
+  // // start up the wifi manager
+  // if (! MDNS.begin("milight-hub")) {
+  //   Serial.println(F("Error setting up MDNS responder"));
+  // }
 
-  MDNS.addService("http", "tcp", 80);
+  // MDNS.addService("http", "tcp", 80);
 
-  //  SSDP.setSchemaURL("description.xml");
-  //  SSDP.setHTTPPort(80);
-  //  SSDP.setName("ESP8266 MiLight Gateway");
-  //  SSDP.setSerialNumber(ESP.getChipId());
-  //  SSDP.setURL("/");
-  //  SSDP.setDeviceType("upnp:rootdevice");
-  //  SSDP.begin();
+  // SSDP.setSchemaURL("description.xml");
+  // SSDP.setHTTPPort(80);
+  // SSDP.setName("ESP8266 MiLight Gateway");
+  // SSDP.setSerialNumber(ESP.getChipId());
+  // SSDP.setURL("/");
+  // SSDP.setDeviceType("upnp:rootdevice");
+  // SSDP.begin();
 
-  httpServer = new MiLightHttpServer(settings, milightClient, stateStore);
+  httpServer = new MiLightHttpServer(settings, milightClient, stateStore, packetSender, radios, transitions);
   httpServer->onSettingsSaved(applySettings);
   httpServer->onGroupDeleted(onGroupDeleted);
   //httpServer->on("/description.xml", HTTP_GET, []() { SSDP.schema(httpServer->client()); });
   httpServer->begin();
+
+  transitions.addListener(
+    [](const BulbId& bulbId, GroupStateField field, uint16_t value) {
+      StaticJsonDocument<100> buffer;
+
+      const char* fieldName = GroupStateFieldHelpers::getFieldName(field);
+      buffer[fieldName] = value;
+
+      milightClient->prepare(bulbId.deviceType, bulbId.deviceId, bulbId.groupId);
+      milightClient->update(buffer.as<JsonObject>());
+    }
+  );
 
   Serial.printf_P(PSTR("Setup complete (version %s)\n"), QUOTE(MILIGHT_HUB_VERSION));
 }
@@ -307,9 +420,23 @@ void loop() {
     bulbStateUpdater->loop();
   }
 
+  // for (size_t i = 0; i < udpServers.size(); i++) {
+  //   udpServers[i]->handleClient();
+  // }
+
+  // if (discoveryServer) {
+  //   discoveryServer->handleClient();
+  // }
+
   handleListen();
 
   stateStore->limitedFlush();
+  packetSender->loop();
+
+  // update LED with status
+  // ledStatus->handle();
+
+  transitions.loop();
 
   if (shouldRestart()) {
     Serial.println(F("Auto-restart triggered. Restarting..."));
