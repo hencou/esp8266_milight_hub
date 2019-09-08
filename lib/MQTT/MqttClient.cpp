@@ -285,6 +285,12 @@ void MqttClient::publishCallback(char* topic, byte* payload, int length) {
 
     milightClient->prepare(config, deviceId, groupId);
     milightClient->update(obj);
+    
+    //send it 3 times to ensure the command is received
+    milightClient->prepare(config, deviceId, groupId);
+    milightClient->update(obj);
+    
+    milightClient->prepare(config, deviceId, groupId);
     milightClient->update(obj);
     }
   }
