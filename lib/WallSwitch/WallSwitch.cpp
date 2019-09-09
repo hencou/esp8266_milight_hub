@@ -40,6 +40,7 @@ void WallSwitch::begin() {
     pinMode(A0, INPUT_PULLUP);
 
     delayTimer = millis();
+    startupTimer = random(15000, 30000);
   }
 }
 
@@ -386,12 +387,15 @@ void WallSwitch::detectMotion() {
 void WallSwitch::doLightState() {
 
   //turn all lights off at startup
-  if (isStartUp == true && millis() > 15000) {
+  if (isStartUp == true && millis() > startupTimer) {
 
     isStartUp = false;
 
     milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 0);
     milightClient->updateTemperature(100);
+    milightClient->updateStatus(OFF);
+
+    milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 0);
     milightClient->updateStatus(OFF);
   }
 }

@@ -63,6 +63,7 @@ private:
   boolean motionState = false;
   boolean previousMotion = false;
   unsigned long firstMotion = 0;
+  unsigned int startupTimer = 0;
 
   //MQTT parameterss
   long lastMsg = 0;
