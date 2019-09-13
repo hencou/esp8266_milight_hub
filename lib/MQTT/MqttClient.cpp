@@ -13,10 +13,11 @@ static const char* STATUS_CONNECTED = "connected";
 static const char* STATUS_DISCONNECTED = "disconnected_clean";
 static const char* STATUS_LWT_DISCONNECTED = "disconnected_unclean";
 
-MqttClient::MqttClient(Settings& settings, MiLightClient*& milightClient)
+MqttClient::MqttClient(Settings& settings, MiLightClient*& milightClient, GroupStateStore& stateStore)
   : mqttClient(tcpClient),
     milightClient(milightClient),
     settings(settings),
+    stateStore(stateStore),
     lastConnectAttempt(0),
     connected(false)
 {
@@ -135,6 +136,20 @@ void MqttClient::handleClient() {
   } else if (!mqttClient.connected()) {
     this->connected = false;
   }
+
+  //<Added by HC: send command multiple after a second to ensure lamps received the command>
+  while (millis() - lastCommandTime > 1000 && staleGroups.size() > 0) {
+    BulbId bulbId = staleGroups.shift();
+    GroupState* groupState = stateStore.get(bulbId);
+
+    StaticJsonDocument<200> buffer;
+    JsonObject result = buffer.to<JsonObject>();
+	  groupState->applyState(result, bulbId, settings.groupStateFields);
+    
+    milightClient->prepare(bulbId.deviceType, bulbId.deviceId, bulbId.groupId);
+    milightClient->update(result);
+  }
+  //</Added by HC
 }
 
 void MqttClient::sendUpdate(const MiLightRemoteConfig& remoteConfig, uint16_t deviceId, uint16_t groupId, const char* update) {
@@ -275,6 +290,7 @@ void MqttClient::publishCallback(char* topic, byte* payload, int length) {
   deserializeJson(buffer, cstrPayload);
   JsonObject obj = buffer.as<JsonObject>();
 
+  //<changed by HC
   //accept incoming MQTT command only when deviceId is in use as UDP device
   for (size_t i = 0; i < settings.gatewayConfigs.size(); i++) {
     if (deviceId == settings.gatewayConfigs[i]->deviceId) {
@@ -286,14 +302,12 @@ void MqttClient::publishCallback(char* topic, byte* payload, int length) {
     milightClient->prepare(config, deviceId, groupId);
     milightClient->update(obj);
     
-    //send it 3 times to ensure the command is received
-    milightClient->prepare(config, deviceId, groupId);
-    milightClient->update(obj);
-    
-    milightClient->prepare(config, deviceId, groupId);
-    milightClient->update(obj);
+    BulbId bulbId(deviceId, groupId, config->type);
+    staleGroups.push(bulbId);
+    lastCommandTime = millis();
     }
   }
+  //<changed by HC
 }
 
 String MqttClient::bindTopicString(const String& topicPattern, const BulbId& bulbId) {

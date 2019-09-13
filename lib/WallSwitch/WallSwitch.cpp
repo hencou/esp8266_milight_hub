@@ -146,9 +146,11 @@ void WallSwitch::doShortClicks(uint8_t id)
   if (shortClicks[id] == 1)
   {
     milightClient->updateStatus(OFF);
+    milightClient->updateStatus(OFF);
   }
   if (shortClicks[id] == 2)
   {
+    milightClient->enableNightMode();
     milightClient->enableNightMode();
 
     //no Off command to mesh_in:
@@ -156,6 +158,7 @@ void WallSwitch::doShortClicks(uint8_t id)
   }
   if (shortClicks[id] == 3)
   {
+    milightClient->updateColorWhite();
     milightClient->updateColorWhite();
   }
   if (shortClicks[id] == 4)
