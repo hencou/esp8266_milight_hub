@@ -245,19 +245,15 @@ void WallSwitch::sendMQTTCommand(uint8_t id)
 {
   BulbId bulbId(settings.gatewayConfigs[0]->deviceId, id + 1, remoteConfig->type);
 
-  StaticJsonDocument<200> buffer;
-  JsonObject result = buffer.to<JsonObject>();
+  char buffer[200];
+  StaticJsonDocument<200> json;
+  JsonObject message = json.to<JsonObject>();
 
   GroupState* groupState = stateStore->get(bulbId);
-  const GroupState stateUpdates(groupState, result);
+	if (groupState == NULL) return;
 
-	if (groupState != NULL) {
-	  groupState->patch(stateUpdates);
-    stateStore->set(bulbId, stateUpdates);
-	}
-
-  char output[200];
-  serializeJson(result, output);
+  groupState->applyState(message, bulbId, settings.groupStateFields);
+  serializeJson(json, buffer);
 
   String topic = settings.mqttTopicPattern;
   String hexDeviceId = bulbId.getHexDeviceId();
@@ -273,7 +269,7 @@ void WallSwitch::sendMQTTCommand(uint8_t id)
   #endif
 
   //send command to milight/xxx/xxx/x
-  mqttClient.send(topic.c_str(), output, false);
+  mqttClient.send(topic.c_str(), buffer, false);
 }
 
 //handle actions based on LDR state

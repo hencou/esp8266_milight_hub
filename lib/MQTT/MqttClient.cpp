@@ -140,14 +140,17 @@ void MqttClient::handleClient() {
   //<Added by HC: send command multiple after a second to ensure lamps received the command>
   while (millis() - lastCommandTime > 1000 && staleGroups.size() > 0) {
     BulbId bulbId = staleGroups.shift();
-    GroupState* groupState = stateStore.get(bulbId);
-
-    StaticJsonDocument<200> buffer;
-    JsonObject result = buffer.to<JsonObject>();
-	  groupState->applyState(result, bulbId, settings.groupStateFields);
     
-    milightClient->prepare(bulbId.deviceType, bulbId.deviceId, bulbId.groupId);
-    milightClient->update(result);
+    StaticJsonDocument<200> json;
+    JsonObject message = json.to<JsonObject>();
+    
+    GroupState* groupState = stateStore.get(bulbId);
+    if (groupState != NULL) {
+      groupState->applyState(message, bulbId, settings.groupStateFields);
+    
+      milightClient->prepare(bulbId.deviceType, bulbId.deviceId, bulbId.groupId);
+      milightClient->update(message);
+    }
   }
   //</Added by HC
 }
