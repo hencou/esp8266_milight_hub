@@ -129,7 +129,7 @@ void WallSwitch::checkButton(int buttonPin, uint8_t id) {
     }
   }
 
-  if (buttonDirty[id] == true && currentState[id] == HIGH && (millis() - firstTime[id]) > 1000)
+  if (buttonDirty[id] == true && currentState[id] == HIGH && (millis() - firstTime[id]) > 2000)
   {
     sendMQTTCommand(id);
     buttonDirty[id] = false;
