@@ -46,6 +46,7 @@ private:
   GroupStateStore& stateStore;
   CircularBuffer<BulbId, MILIGHT_MAX_STALE_MQTT_GROUPS> staleGroups;
   unsigned long lastCommandTime;
+  unsigned int repeatTimer = 0;
   //</Added by HC
 
   void sendBirthMessage();

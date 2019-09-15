@@ -54,6 +54,8 @@ void MqttClient::begin() {
     }
   );
   reconnect();
+
+  repeatTimer = random(2000, 3000);
 }
 
 bool MqttClient::connect() {
@@ -138,7 +140,7 @@ void MqttClient::handleClient() {
   }
 
   //<Added by HC: send command multiple after a second to ensure lamps received the command>
-  while (millis() - lastCommandTime > 2000 && staleGroups.size() > 0) {
+  while (millis() - lastCommandTime > repeatTimer && staleGroups.size() > 0) {
     BulbId bulbId = staleGroups.shift();
     
     StaticJsonDocument<200> json;
