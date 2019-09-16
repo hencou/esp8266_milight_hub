@@ -329,6 +329,7 @@ void applySettings() {
   });
 
   Serial.printf("Connecting to %s ...\n", wifi_ssid);
+  WiFi.mode(WIFI_STA);
   WiFi.begin(wifi_ssid, wifi_password);
   
   wallSwitch = new WallSwitch(settings, milightClient, stateStore, *mqttClient);

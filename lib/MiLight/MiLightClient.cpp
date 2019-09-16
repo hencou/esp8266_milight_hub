@@ -324,6 +324,19 @@ void MiLightClient::update(JsonObject request) {
     this->updateBeginHandler();
   }
 
+  //<Added by HC>
+  if (request.containsKey(GroupStateFieldNames::EFFECT)) {
+    if (request[GroupStateFieldNames::EFFECT] == MiLightCommandNames::NIGHT_MODE) {
+      if (request.containsKey(GroupStateFieldNames::STATE)) {
+        request.remove(GroupStateFieldNames::STATE);
+      }
+      if (request.containsKey(GroupStateFieldNames::STATUS)) {
+        request.remove(GroupStateFieldNames::STATUS);
+      }
+    }
+  }
+  //</Added by HC>
+
   const JsonVariant status = this->extractStatus(request);
   const uint8_t parsedStatus = this->parseStatus(status);
   const JsonVariant jsonTransition = request[RequestKeys::TRANSITION];
