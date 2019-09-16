@@ -152,6 +152,7 @@ void MqttClient::handleClient() {
     
       milightClient->prepare(bulbId.deviceType, bulbId.deviceId, bulbId.groupId);
       milightClient->update(message);
+      milightClient->update(message);
     }
   }
   //</Added by HC
@@ -305,6 +306,7 @@ void MqttClient::publishCallback(char* topic, byte* payload, int length) {
     #endif
 
     milightClient->prepare(config, deviceId, groupId);
+    milightClient->update(obj);
     milightClient->update(obj);
     
     BulbId bulbId(deviceId, groupId, config->type);
