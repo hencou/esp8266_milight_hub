@@ -15,8 +15,8 @@ static const char* STATUS_LWT_DISCONNECTED = "disconnected_unclean";
 
 MqttClient::MqttClient(Settings& settings, MiLightClient*& milightClient, GroupStateStore& stateStore)
   : mqttClient(tcpClient),
-    milightClient(milightClient),
     settings(settings),
+    milightClient(milightClient),
     stateStore(stateStore),
     lastConnectAttempt(0),
     connected(false)
@@ -149,7 +149,17 @@ void MqttClient::handleClient() {
     GroupState* groupState = stateStore.get(bulbId);
     if (groupState != NULL) {
       groupState->applyState(message, bulbId, settings.groupStateFields);
-    
+
+      if (message.containsKey(GroupStateFieldNames::BULB_MODE)) {
+        message.remove(GroupStateFieldNames::BULB_MODE);
+      }
+      if (message.containsKey(GroupStateFieldNames::MODE)) {
+        message.remove(GroupStateFieldNames::MODE);
+      }
+      if (message.containsKey(GroupStateFieldNames::EFFECT)) {
+        message.remove(GroupStateFieldNames::EFFECT);
+      }
+
       milightClient->prepare(bulbId.deviceType, bulbId.deviceId, bulbId.groupId);
       milightClient->update(message);
       milightClient->update(message);

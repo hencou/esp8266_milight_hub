@@ -35,12 +35,8 @@ public:
 private:
   WiFiClient tcpClient;
   PubSubClient mqttClient;
-  MiLightClient*& milightClient;
   Settings& settings;
-  char* domain;
-  unsigned long lastConnectAttempt;
-  OnConnectFn onConnectFn;
-  bool connected;
+  MiLightClient*& milightClient;
 
   //<Added by HC>
   GroupStateStore& stateStore;
@@ -48,6 +44,11 @@ private:
   unsigned long lastCommandTime;
   unsigned int repeatTimer = 0;
   //</Added by HC
+  
+  char* domain;
+  unsigned long lastConnectAttempt;
+  OnConnectFn onConnectFn;
+  bool connected;
 
   void sendBirthMessage();
   bool connect();
