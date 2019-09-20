@@ -156,9 +156,6 @@ void MqttClient::handleClient() {
       if (message.containsKey(GroupStateFieldNames::MODE)) {
         message.remove(GroupStateFieldNames::MODE);
       }
-      if (message.containsKey(GroupStateFieldNames::EFFECT)) {
-        message.remove(GroupStateFieldNames::EFFECT);
-      }
 
       milightClient->prepare(bulbId.deviceType, bulbId.deviceId, bulbId.groupId);
       milightClient->update(message);
