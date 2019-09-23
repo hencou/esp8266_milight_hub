@@ -150,11 +150,18 @@ void MqttClient::handleClient() {
     if (groupState != NULL) {
       groupState->applyState(message, bulbId, settings.groupStateFields);
 
+      //Remove bulb_mode commands to avoid flickering
       if (message.containsKey(GroupStateFieldNames::BULB_MODE)) {
         message.remove(GroupStateFieldNames::BULB_MODE);
       }
       if (message.containsKey(GroupStateFieldNames::MODE)) {
         message.remove(GroupStateFieldNames::MODE);
+      }
+      //Remove effect commands when in white_mode to avoid color flickering
+      if (message.containsKey(GroupStateFieldNames::EFFECT)) {
+        if (message[GroupStateFieldNames::EFFECT] == "white" || message[GroupStateFieldNames::EFFECT] == "white_mode") {
+          message.remove(GroupStateFieldNames::EFFECT);
+        }
       }
 
       milightClient->prepare(bulbId.deviceType, bulbId.deviceId, bulbId.groupId);

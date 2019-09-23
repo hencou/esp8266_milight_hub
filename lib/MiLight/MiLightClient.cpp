@@ -20,10 +20,12 @@ const char* MiLightClient::FIELD_ORDERINGS[] = {
   GroupStateFieldNames::SATURATION,
   GroupStateFieldNames::KELVIN,
   GroupStateFieldNames::TEMPERATURE,
-  GroupStateFieldNames::COLOR_TEMP,
   GroupStateFieldNames::MODE,
   GroupStateFieldNames::EFFECT,
   GroupStateFieldNames::COLOR,
+  //<Changed by HC, color_temp after effect>
+  GroupStateFieldNames::COLOR_TEMP,
+  //</Changed by HC>
   // Level/Brightness must be processed last because they're specific to a particular bulb mode.
   // So make sure bulb mode is set before applying level/brightness.
   GroupStateFieldNames::LEVEL,
@@ -324,7 +326,7 @@ void MiLightClient::update(JsonObject request) {
     this->updateBeginHandler();
   }
 
-  //<Added by HC>
+  //<Added by HC remove ON/OFF state commands when receiving night mode command>
   if (request.containsKey(GroupStateFieldNames::EFFECT)) {
     if (request[GroupStateFieldNames::EFFECT] == MiLightCommandNames::NIGHT_MODE) {
       if (request.containsKey(GroupStateFieldNames::STATE)) {
@@ -649,6 +651,7 @@ void MiLightClient::handleEffect(const String& effect) {
   if (effect == MiLightCommandNames::NIGHT_MODE) {
     this->enableNightMode();
   } else if (effect == "white" || effect == "white_mode") {
+    
     this->updateColorWhite();
   } else { // assume we're trying to set mode
     this->updateMode(effect.toInt());
