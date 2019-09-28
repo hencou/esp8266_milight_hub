@@ -13,11 +13,10 @@ static const char* STATUS_CONNECTED = "connected";
 static const char* STATUS_DISCONNECTED = "disconnected_clean";
 static const char* STATUS_LWT_DISCONNECTED = "disconnected_unclean";
 
-MqttClient::MqttClient(Settings& settings, MiLightClient*& milightClient, GroupStateStore& stateStore)
+MqttClient::MqttClient(Settings& settings, MiLightClient*& milightClient)
   : mqttClient(tcpClient),
     settings(settings),
     milightClient(milightClient),
-    stateStore(stateStore),
     lastConnectAttempt(0),
     connected(false)
 {
@@ -140,35 +139,20 @@ void MqttClient::handleClient() {
   }
 
   //<Added by HC: send command multiple after a second to ensure lamps received the command>
-  while (millis() - lastCommandTime > repeatTimer && staleGroups.size() > 0) {
-    BulbId bulbId = staleGroups.shift();
-    
-    StaticJsonDocument<200> json;
-    JsonObject message = json.to<JsonObject>();
-    
-    GroupState* groupState = stateStore.get(bulbId);
-    if (groupState != NULL) {
-      groupState->applyState(message, bulbId, settings.groupStateFields);
+  while (millis() - lastCommandTime > repeatTimer && commandBulbIds.size() > 0) {
 
-      //Remove bulb_mode commands to avoid flickering
-      if (message.containsKey(GroupStateFieldNames::BULB_MODE)) {
-        message.remove(GroupStateFieldNames::BULB_MODE);
-      }
-      if (message.containsKey(GroupStateFieldNames::MODE)) {
-        message.remove(GroupStateFieldNames::MODE);
-      }
-      //Remove effect commands when in white_mode to avoid color flickering
-      if (message.containsKey(GroupStateFieldNames::EFFECT)) {
-        if (message[GroupStateFieldNames::EFFECT] == "white" || message[GroupStateFieldNames::EFFECT] == "white_mode") {
-          message.remove(GroupStateFieldNames::EFFECT);
-        }
-      }
+    BulbId bulbId = commandBulbIds.shift();
+    String message = commandMessages.shift();
 
-      milightClient->prepare(bulbId.deviceType, bulbId.deviceId, bulbId.groupId);
-      milightClient->update(message);
-      milightClient->update(message);
-    }
+    StaticJsonDocument<400> buffer;
+    deserializeJson(buffer, message.c_str());
+    JsonObject obj = buffer.as<JsonObject>();
+    
+    milightClient->prepare(bulbId.deviceType, bulbId.deviceId, bulbId.groupId);
+    milightClient->update(obj);
+    milightClient->update(obj);
   }
+  if (commandBulbIds.size() == 0) commandMessages.clear();
   //</Added by HC
 }
 
@@ -324,7 +308,12 @@ void MqttClient::publishCallback(char* topic, byte* payload, int length) {
     milightClient->update(obj);
     
     BulbId bulbId(deviceId, groupId, config->type);
-    staleGroups.push(bulbId);
+    commandBulbIds.push(bulbId);
+
+    char output[200];
+  	serializeJson(obj, output);
+    commandMessages.push(output);
+
     lastCommandTime = millis();
     }
   }

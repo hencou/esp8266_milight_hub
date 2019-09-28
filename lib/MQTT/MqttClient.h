@@ -19,7 +19,7 @@ class MqttClient {
 public:
   using OnConnectFn = std::function<void()>;
 
-  MqttClient(Settings& settings, MiLightClient*& milightClient, GroupStateStore& stateStore);
+  MqttClient(Settings& settings, MiLightClient*& milightClient);
   ~MqttClient();
 
   void begin();
@@ -39,8 +39,8 @@ private:
   MiLightClient*& milightClient;
 
   //<Added by HC>
-  GroupStateStore& stateStore;
-  CircularBuffer<BulbId, MILIGHT_MAX_STALE_MQTT_GROUPS> staleGroups;
+  CircularBuffer<BulbId, MILIGHT_MAX_STALE_MQTT_GROUPS> commandBulbIds;
+  CircularBuffer<String, MILIGHT_MAX_STALE_MQTT_GROUPS> commandMessages;
   unsigned long lastCommandTime;
   unsigned int repeatTimer = 0;
   //</Added by HC

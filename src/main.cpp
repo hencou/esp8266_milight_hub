@@ -267,7 +267,7 @@ void applySettings() {
   milightClient->onUpdateEnd(onUpdateEnd);
 
   if (settings.mqttServer().length() > 0) {
-    mqttClient = new MqttClient(settings, milightClient, *stateStore);
+    mqttClient = new MqttClient(settings, milightClient);
     mqttClient->begin();
     mqttClient->onConnect([]() {
       if (settings.homeAssistantDiscoveryPrefix.length() > 0) {
