@@ -334,6 +334,10 @@ void MiLightClient::update(JsonObject request) {
         request.remove(GroupStateFieldNames::STATUS);
       }
     }
+    //remove "white" effect, to prevent unwanted color_temp changes from warm to cold white, white is already set by color_temp
+    if (request[GroupStateFieldNames::EFFECT] == "white_mode" || request[GroupStateFieldNames::EFFECT] == "white") {
+      request.remove(GroupStateFieldNames::EFFECT);
+    }
   }
   //</Added by HC>
 
