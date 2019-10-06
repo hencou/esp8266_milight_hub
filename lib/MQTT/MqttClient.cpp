@@ -148,6 +148,12 @@ void MqttClient::handleClient() {
     deserializeJson(buffer, message.c_str());
     JsonObject obj = buffer.as<JsonObject>();
     
+    if (obj.containsKey("repeats")) {
+      if (obj["repeats"] == "NO") {
+        continue;
+      }
+    }
+    
     milightClient->prepare(bulbId.deviceType, bulbId.deviceId, bulbId.groupId);
     milightClient->update(obj);
     milightClient->update(obj);

@@ -253,6 +253,8 @@ void WallSwitch::sendMQTTCommand(uint8_t id)
 	if (groupState == NULL) return;
 
   groupState->applyState(message, bulbId, settings.groupStateFields);
+  json.add("repeats");
+  json["repeats"] = "NO";
   serializeJson(json, buffer);
 
   String topic = settings.mqttTopicPattern;
