@@ -142,10 +142,10 @@ void onPacketSentHandler(uint8_t* packet, const MiLightRemoteConfig& config) {
 
   		if (mqttClient) {
 
-  			// Sends the state delta derived from the raw packet, disabled to have better Off-handling in hassio (off-on-off)
-  			//char output[200];
-  			//serializeJson(result, output);
-  			//mqttClient->sendUpdate(remoteConfig, bulbId.deviceId, bulbId.groupId, output);
+  			// Sends the state delta derived from the raw packet
+  			char output[200];
+  			serializeJson(result, output);
+  			mqttClient->sendUpdate(remoteConfig, bulbId.deviceId, bulbId.groupId, output);
 
   			// Sends the entire state
     		if (groupState != NULL) {

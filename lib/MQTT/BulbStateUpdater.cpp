@@ -9,6 +9,9 @@ BulbStateUpdater::BulbStateUpdater(Settings& settings, MqttClient& mqttClient, G
 { }
 
 void BulbStateUpdater::enable() {
+  //<Added by HC>: wait a little before sending final state to avoid double messages
+  lastFlush = millis();
+  //</Added by HC>
   this->enabled = true;
 }
 
