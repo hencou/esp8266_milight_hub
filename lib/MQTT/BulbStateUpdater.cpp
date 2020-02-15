@@ -48,6 +48,17 @@ inline void BulbStateUpdater::flushGroup(BulbId bulbId, GroupState& state) {
   state.applyState(message, bulbId, settings.groupStateFields);
   serializeJson(json, buffer);
 
+  //<Added by HC, send night mode state>
+  if (state.isNightMode()) {
+    mqttClient.sendState(*MiLightRemoteConfig::fromType(bulbId.deviceType),
+                          bulbId.deviceId,
+                          bulbId.groupId,
+                          "{\"state\": \"ON\", \"effect\": \"night_mode\"}"
+                          );
+    return;
+  }
+  //</Added by HC>
+
   mqttClient.sendState(
     *MiLightRemoteConfig::fromType(bulbId.deviceType),
     bulbId.deviceId,
