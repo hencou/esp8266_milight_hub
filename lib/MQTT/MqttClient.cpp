@@ -15,8 +15,8 @@ static const char* STATUS_LWT_DISCONNECTED = "disconnected_unclean";
 
 MqttClient::MqttClient(Settings& settings, MiLightClient*& milightClient)
   : mqttClient(tcpClient),
-    settings(settings),
     milightClient(milightClient),
+    settings(settings),
     lastConnectAttempt(0),
     connected(false)
 {

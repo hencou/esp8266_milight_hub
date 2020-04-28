@@ -88,6 +88,7 @@ void Settings::patch(JsonObject parsedSettings) {
   this->setIfPresent(parsedSettings, "listen_repeats", listenRepeats);
   this->setIfPresent(parsedSettings, "state_flush_interval", stateFlushInterval);
   this->setIfPresent(parsedSettings, "mqtt_state_rate_limit", mqttStateRateLimit);
+  this->setIfPresent(parsedSettings, "mqtt_debounce_delay", mqttDebounceDelay);
   this->setIfPresent(parsedSettings, "packet_repeat_throttle_threshold", packetRepeatThrottleThreshold);
   this->setIfPresent(parsedSettings, "packet_repeat_throttle_sensitivity", packetRepeatThrottleSensitivity);
   this->setIfPresent(parsedSettings, "packet_repeat_minimum", packetRepeatMinimum);
@@ -99,6 +100,7 @@ void Settings::patch(JsonObject parsedSettings) {
   this->setIfPresent(parsedSettings, "wifi_static_ip_netmask", wifiStaticIPNetmask);
   this->setIfPresent(parsedSettings, "packet_repeats_per_loop", packetRepeatsPerLoop);
   this->setIfPresent(parsedSettings, "home_assistant_discovery_prefix", homeAssistantDiscoveryPrefix);
+  this->setIfPresent(parsedSettings, "default_transition_period", defaultTransitionPeriod);
 
   if (parsedSettings.containsKey("wifi_mode")) {
     this->wifiMode = wifiModeFromString(parsedSettings["wifi_mode"]);
@@ -270,6 +272,7 @@ void Settings::serialize(Print& stream, const bool prettyPrint) {
   root["listen_repeats"] = this->listenRepeats;
   root["state_flush_interval"] = this->stateFlushInterval;
   root["mqtt_state_rate_limit"] = this->mqttStateRateLimit;
+  root["mqtt_debounce_delay"] = this->mqttDebounceDelay;
   root["packet_repeat_throttle_sensitivity"] = this->packetRepeatThrottleSensitivity;
   root["packet_repeat_throttle_threshold"] = this->packetRepeatThrottleThreshold;
   root["packet_repeat_minimum"] = this->packetRepeatMinimum;
@@ -288,6 +291,7 @@ void Settings::serialize(Print& stream, const bool prettyPrint) {
   root["packet_repeats_per_loop"] = this->packetRepeatsPerLoop;
   root["home_assistant_discovery_prefix"] = this->homeAssistantDiscoveryPrefix;
   root["wifi_mode"] = wifiModeToString(this->wifiMode);
+  root["default_transition_period"] = this->defaultTransitionPeriod;
 
   JsonArray channelArr = root.createNestedArray("rf24_channels");
   JsonHelpers::vectorToJsonArr<RF24Channel, String>(channelArr, rf24Channels, RF24ChannelHelpers::nameFromValue);

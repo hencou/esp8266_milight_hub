@@ -369,7 +369,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TransitionData'
+              allOf:
+                - $ref: '#/components/schemas/TransitionData'
+                - $ref: '#/components/schemas/BulbId'
       responses:
         400:
           description: error
@@ -582,21 +584,22 @@ components:
         period:
           type: integer
           description: Length of time between updates in a transition, measured in milliseconds
-        num_periods:
-          type: integer
-          description: Number of packets sent over the course of the transition
     TransitionData:
       allOf:
         - $ref: '#/components/schemas/TransitionArgs'
         - type: object
           properties:
             id:
+              readOnly: true
               type: integer
             last_sent:
+              readOnly: true
               type: integer
               description: Timestamp since last update was sent.
             bulb:
-              $ref: '#/components/schemas/BulbId'
+              readOnly: true
+              allOf:
+                - $ref: '#/components/schemas/BulbId'
             type:
               readOnly: true
               description: >
@@ -606,9 +609,13 @@ components:
                 - field
                 - color
             current_value:
-              $ref: '#/components/schemas/TransitionValue'
+              readOnly: true
+              allOf:
+                - $ref: '#/components/schemas/TransitionValue'
             end_value:
-              $ref: '#/components/schemas/TransitionValue'
+              readOnly: true
+              allOf:
+                - $ref: '#/components/schemas/TransitionValue'
 
     BulbId:
       type: object
@@ -882,6 +889,10 @@ components:
           type: integer
           description: Controls how many miliseconds must pass between MQTT state updates.  Set to 0 to disable throttling.
           default: 500
+        mqtt_debounce_delay:
+          type: integer
+          description: Controls how much time has to pass after the last status update was queued.
+          default: 500
         packet_repeat_throttle_threshold:
           type: integer
           description:
@@ -990,6 +1001,11 @@ components:
           example:
             alias1: [1234, 'rgb_cct', 1]
             alias2: [1234, 'rgb_cct', 2]
+        default_transition_period:
+          type: integer
+          description: |
+            Default number of milliseconds between transition packets.  Set this value lower for more granular transitions, or higher if
+            you are having performance issues during transitions.
 
     BooleanResponse:
       type: object

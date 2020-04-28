@@ -2,8 +2,17 @@
 #include <cmath>
 #include <algorithm>
 
-FieldTransition::Builder::Builder(size_t id, const BulbId& bulbId, TransitionFn callback, GroupStateField field, uint16_t start, uint16_t end)
-  : Transition::Builder(id, bulbId, callback, std::ceil(static_cast<int16_t>(end) - start))
+FieldTransition::Builder::Builder(size_t id, uint16_t defaultPeriod, const BulbId& bulbId, TransitionFn callback, GroupStateField field, uint16_t start, uint16_t end)
+  : Transition::Builder(
+      id,
+      defaultPeriod,
+      bulbId,
+      callback,
+      max(
+        static_cast<size_t>(1),
+        static_cast<size_t>(std::abs(static_cast<int16_t>(end) - static_cast<uint16_t>(start)))
+      )
+  )
   , stepSize(0)
   , field(field)
   , start(start)

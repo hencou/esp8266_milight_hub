@@ -641,9 +641,6 @@ bool MiLightClient::handleTransition(JsonObject args, JsonDocument& responseObj)
   if (args.containsKey(FS(TransitionParams::PERIOD))) {
     transitionBuilder->setPeriod(args[FS(TransitionParams::PERIOD)]);
   }
-  if (args.containsKey(FS(TransitionParams::NUM_PERIODS))) {
-    transitionBuilder->setNumPeriods(args[FS(TransitionParams::NUM_PERIODS)]);
-  }
 
   transitions.addTransition(transitionBuilder->build());
   return true;
@@ -653,7 +650,6 @@ void MiLightClient::handleEffect(const String& effect) {
   if (effect == MiLightCommandNames::NIGHT_MODE) {
     this->enableNightMode();
   } else if (effect == "white" || effect == "white_mode") {
-    
     this->updateColorWhite();
   } else { // assume we're trying to set mode
     this->updateMode(effect.toInt());

@@ -119,7 +119,7 @@ Of course make sure to substitute `d1_mini` with the board that you're using.
 
 #### Configure WiFi
 
-Configure the Wifi and Mesh settings in the header of main.cpp and in /src/credentials.h, see /src/credentials.h.example
+Configure the Wifi settings in the header of main.cpp and in /src/credentials.h, see /src/credentials.h.example
 
 #### Use it!
 
@@ -170,7 +170,7 @@ To configure your ESP to integrate with MQTT, fill out the following settings:
 1. `:group_id` - Group.  0-4 for most remotes.  The "All" group is group 0.
 1. `:device_alias` - Alias for the given device.  Note that if an alias is not configured, a default token `__unnamed_group` will be substituted instead.
 
-Messages should be JSON objects using exactly the same schema that the REST gateway uses for the `/gateways/:device_id/:device_type/:group_id` endpoint. Documented above in the _Bulb commands_ section.
+Messages should be JSON objects using exactly the same schema that the [REST gateway](https://sidoh.github.io/esp8266_milight_hub/branches/latest/#tag/Device-Control/paths/~1gateways~1{device-id}~1{remote-type}~1{group-id}/put) uses for the `/gateways/:device_id/:device_type/:group_id` endpoint.
 
 #### Example:
 
@@ -293,9 +293,11 @@ In the setup UI, you can turn on "enable_solid_led" to change the LED behavior t
 
 Note that you must restart the hub to affect the change in "enable_solid_led".
 
-You can configure the LED pin from the web console.  Note that pin means the GPIO number, not the D number ... for example, D2 is actually GPIO4 and therefore its pin 4.  If you specify the pin as a negative number, it will invert the LED signal (the built-in LED on pin 2 is inverted, so the default is -2).
+You can configure the LED pin from the web console.  Note that pin means the GPIO number, not the D number ... for example, D1 is actually GPIO5 and therefore its pin 5.  If you specify the pin as a negative number, it will invert the LED signal (the built-in LED on pin 2 (D4) is inverted, so the default is -2).
 
-If you want to wire up your own LED on a pin, such as on D2/GPIO4, put a wire from D2 to one side of a 220 ohm resister.  On the other side, connect it to the positive side (the longer wire) of a 3.3V LED.  Then connect the negative side of the LED (the shorter wire) to ground.  If you use a different voltage LED, or a high current LED, you will need to add a driver circuit.
+If you want to wire up your own LED you can connect it to D1/GPIO5. Put a wire from D1 to one side of a 220 ohm resistor. On the other side, connect it to the positive side (the longer wire) of a 3.3V LED.  Then connect the negative side of the LED (the shorter wire) to ground.  If you use a different voltage LED, or a high current LED, you will need to add a driver circuit.
+
+Another option is to use an external LED parallel to the (inverted) internal one, this way it will mirror the internal LED without configuring a new LED pin in the UI. To do this connect the (short) GND pin of your LED to D4. The longer one to a 220 ohm resistor and finally the other side of the resistor to a 3V3 pin.
 
 ## Development
 

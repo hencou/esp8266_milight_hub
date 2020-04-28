@@ -35,8 +35,8 @@ public:
 private:
   WiFiClient tcpClient;
   PubSubClient mqttClient;
-  Settings& settings;
   MiLightClient*& milightClient;
+  Settings& settings;
 
   //<Added by HC>
   CircularBuffer<BulbId, MILIGHT_MAX_STALE_MQTT_GROUPS> commandBulbIds;

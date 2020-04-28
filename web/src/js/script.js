@@ -39,6 +39,9 @@ var UI_TABS = [ {
   }, {
     tag: "tab-mqtt",
     friendly: "MQTT"
+  }, {
+    tag: "tab-transitions",
+    friendly: "Transitions"
   }
 ];
 
@@ -271,6 +274,12 @@ var UI_FIELDS = [ {
     type: "string",
     tab: "tab-mqtt"
   }, {
+    tag:   "mqtt_debounce_delay",
+    friendly: "MQTT debounce delay",
+    help: "Minimum number of milliseconds delay for MQTT state updates after change (defaults to 500)",
+    type: "string",
+    tab: "tab-mqtt"
+  }, {
     tag:   "packet_repeat_throttle_threshold",
     friendly: "Packet repeat throttle threshold",
     help: "Controls how packet repeats are throttled.  Packets sent " +
@@ -342,6 +351,13 @@ var UI_FIELDS = [ {
     help: "Number of times the LED will flash when packets are changing",
     type: "string",
     tab: "tab-led"
+  }, {
+    tag: "default_transition_period",
+    friendly: "Default transition period (milliseconds)",
+    help: "Controls how many milliseconds pass between transition packets. "+
+      "For more granular transitions, set this lower.",
+    type: "string",
+    tab: "tab-transitions"
   }
 ];
 
@@ -1231,6 +1247,27 @@ $(function() {
 
   $('#settings').prepend(settings);
 
+  function saveSettings(settingsEntries) {
+    var entries = settingsEntries.slice(0)
+
+    function saveBatch() {
+      if (entries.length > 0) {
+        var batch = Object.fromEntries(entries.splice(0, 30))
+        $.ajax(
+          "/settings",
+          {
+            method: "PUT",
+            contentType: "application/json",
+            data: JSON.stringify(batch)
+          }
+        )
+        .done(saveBatch)
+      }
+    }
+
+    saveBatch()
+  }
+
   $('#settings').submit(function(e) {
     e.preventDefault();
 
@@ -1262,15 +1299,7 @@ $(function() {
       // Make sure we're submitting a value for group_state_fields (will be empty
       // if no values were selected).
       obj = $.extend({group_state_fields: []}, obj);
-
-      $.ajax(
-        "/settings",
-        {
-          method: 'put',
-          contentType: 'application/json',
-          data: JSON.stringify(obj)
-        }
-      );
+      saveSettings(Object.entries(obj))
     }
 
     $('#settings-modal').modal('hide');

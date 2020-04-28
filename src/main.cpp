@@ -1,6 +1,7 @@
 #ifndef UNIT_TEST
 
 #include <SPI.h>
+//#include <WiFiManager.h>
 #include <ArduinoJson.h>
 #include <stdlib.h>
 #include <FS.h>
@@ -240,6 +241,8 @@ void applySettings() {
   if (radios) {
     delete radios;
   }
+
+  transitions.setDefaultPeriod(settings.defaultTransitionPeriod);
   if (wallSwitch) {
     delete wallSwitch;
     wallSwitch = NULL;

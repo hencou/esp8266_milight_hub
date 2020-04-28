@@ -114,12 +114,6 @@ void WallSwitch::checkButton(int buttonPin, uint8_t id) {
     shortClicks[id] = 0;
   }
 
-  //button longer pressed then 10 seconds > ignore button press
-  if (millis_held[id] > 10000)
-  {
-    return;
-  }
-
   if (millis_held[id] > 50)
   {
     if (currentState[id] == HIGH && previousState[id] == LOW && millis_held[id] <= 500)
@@ -129,7 +123,7 @@ void WallSwitch::checkButton(int buttonPin, uint8_t id) {
       timePressLimit[id] = firstTime[id] + 1000;
     }
 
-    if (millis_held[id] > 500 && currentState[id] == LOW)
+    if (millis_held[id] > 500 && currentState[id] == LOW && millis_held[id] < 10000)
     {
       doLongClicks(id);
     }
@@ -159,7 +153,7 @@ void WallSwitch::doShortClicks(uint8_t id)
     milightClient->enableNightMode();
     milightClient->enableNightMode();
 
-    //no Off command to mesh_in:
+    //no Off command to other espMH's:
     buttonDirty[id] = false;
   }
   if (shortClicks[id] == 3)
