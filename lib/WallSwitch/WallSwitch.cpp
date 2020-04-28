@@ -114,6 +114,12 @@ void WallSwitch::checkButton(int buttonPin, uint8_t id) {
     shortClicks[id] = 0;
   }
 
+  //button longer pressed then 10 seconds > ignore button press
+  if (millis_held[id] > 10000)
+  {
+    return;
+  }
+
   if (millis_held[id] > 50)
   {
     if (currentState[id] == HIGH && previousState[id] == LOW && millis_held[id] <= 500)
@@ -163,11 +169,8 @@ void WallSwitch::doShortClicks(uint8_t id)
   }
   if (shortClicks[id] == 4)
   {
-    milightClient->pair();
-  }
-  if (shortClicks[id] == 5)
-  {
-    milightClient->unpair();
+    milightClient->updateStatus(OFF);
+    ESP.restart();
   }
 }
 
@@ -230,13 +233,6 @@ void WallSwitch::doLongClicks(uint8_t id)
       temperature -= 10;
       milightClient->updateTemperature(Units::miredsToWhiteVal(temperature, 100));
     }
-  }
-
-  //Reset after 10 seconds long press
-  if (millis_held[id] > 10000)
-  {
-    milightClient->updateStatus(OFF);
-    ESP.restart();
   }
 }
 
