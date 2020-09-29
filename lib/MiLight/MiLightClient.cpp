@@ -547,16 +547,16 @@ void MiLightClient::handleTransition(GroupStateField field, JsonVariant value, f
 }
 
 bool MiLightClient::handleTransition(JsonObject args, JsonDocument& responseObj) {
-  if (! args.containsKey(FS(TransitionParams::FIELD))
-    || ! args.containsKey(FS(TransitionParams::END_VALUE))) {
+  if (! args.containsKey(FSH(TransitionParams::FIELD))
+    || ! args.containsKey(FSH(TransitionParams::END_VALUE))) {
     responseObj[F("error")] = F("Ignoring transition missing required arguments");
     return false;
   }
 
   const BulbId& bulbId = currentRemote->packetFormatter->currentBulbId();
-  const char* fieldName = args[FS(TransitionParams::FIELD)];
-  JsonVariant startValue = args[FS(TransitionParams::START_VALUE)];
-  JsonVariant endValue = args[FS(TransitionParams::END_VALUE)];
+  const char* fieldName = args[FSH(TransitionParams::FIELD)];
+  JsonVariant startValue = args[FSH(TransitionParams::START_VALUE)];
+  JsonVariant endValue = args[FSH(TransitionParams::END_VALUE)];
   GroupStateField field = GroupStateFieldHelpers::getFieldByName(fieldName);
   std::shared_ptr<Transition::Builder> transitionBuilder = nullptr;
 
@@ -635,11 +635,11 @@ bool MiLightClient::handleTransition(JsonObject args, JsonDocument& responseObj)
     return false;
   }
 
-  if (args.containsKey(FS(TransitionParams::DURATION))) {
-    transitionBuilder->setDuration(args[FS(TransitionParams::DURATION)]);
+  if (args.containsKey(FSH(TransitionParams::DURATION))) {
+    transitionBuilder->setDuration(args[FSH(TransitionParams::DURATION)]);
   }
-  if (args.containsKey(FS(TransitionParams::PERIOD))) {
-    transitionBuilder->setPeriod(args[FS(TransitionParams::PERIOD)]);
+  if (args.containsKey(FSH(TransitionParams::PERIOD))) {
+    transitionBuilder->setPeriod(args[FSH(TransitionParams::PERIOD)]);
   }
 
   transitions.addTransition(transitionBuilder->build());
@@ -659,10 +659,10 @@ void MiLightClient::handleEffect(const String& effect) {
 JsonVariant MiLightClient::extractStatus(JsonObject object) {
   JsonVariant status;
 
-  if (object.containsKey(FS(GroupStateFieldNames::STATUS))) {
-    return object[FS(GroupStateFieldNames::STATUS)];
+  if (object.containsKey(FSH(GroupStateFieldNames::STATUS))) {
+    return object[FSH(GroupStateFieldNames::STATUS)];
   } else {
-    return object[FS(GroupStateFieldNames::STATE)];
+    return object[FSH(GroupStateFieldNames::STATE)];
   }
 }
 

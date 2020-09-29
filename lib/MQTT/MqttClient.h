@@ -3,6 +3,7 @@
 #include <PubSubClient.h>
 #include <WiFiClient.h>
 #include <MiLightRadioConfig.h>
+#include "ListLib.h"
 
 #ifndef MQTT_CONNECTION_ATTEMPT_FREQUENCY
 #define MQTT_CONNECTION_ATTEMPT_FREQUENCY 5000
@@ -39,8 +40,8 @@ private:
   Settings& settings;
 
   //<Added by HC>
-  CircularBuffer<BulbId, MILIGHT_MAX_STALE_MQTT_GROUPS> commandBulbIds;
-  CircularBuffer<String, MILIGHT_MAX_STALE_MQTT_GROUPS> commandMessages;
+  List<BulbId>  commandBulbIds;
+  List<String>  commandMessages;
   unsigned long lastCommandTime;
   unsigned int repeatTimer = 0;
   //</Added by HC

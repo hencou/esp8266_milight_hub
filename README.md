@@ -121,6 +121,15 @@ Of course make sure to substitute `d1_mini` with the board that you're using.
 
 Configure the Wifi settings in the header of main.cpp and in /src/credentials.h, see /src/credentials.h.example
 
+
+
+
+Both mDNS and SSDP are supported.
+
+* OS X - you should be able to navigate to http://milight-hub.local.
+* Windows - you should see a device called "ESP8266 MiLight Gateway" show up in your network explorer.
+* Linux users can install [avahi](http://www.avahi.org/) (`sudo apt-get install avahi-daemon` on Ubuntu), and should then be able to navigate to http://milight-hub.local.
+
 #### Use it!
 
 The HTTP endpoints (shown below) will be fully functional at this point. You should also be able to navigate to `http://<ip_of_esp>`, or `http://milight-hub.local` if your client supports mDNS. The UI should look like this:
@@ -316,6 +325,12 @@ substituting `d1_mini` for the environment of your choice.
 #### Running integration tests
 
 A remote integration test suite built using rspec is available under [`./test/remote`](test/remote).
+
+## Ready-Made Hub
+
+h4nc (h4nc.zigbee(a)gmail.com) created a PCB and 3D-printable case for espMH.  He's offering ready-made versions.  Please get in touch with him at the aforementioned email address for further information.
+
+Find more information from the [espmh_pcb](https://github.com/sidoh/espmh_pcb) repository.
 
 ## Acknowledgements
 

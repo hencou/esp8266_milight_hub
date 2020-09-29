@@ -1,4 +1,5 @@
 #include <FS.h>
+#include <LITTLEFS.h>
 #include <WiFiUdp.h>
 #include <IntParsing.h>
 #include <Settings.h>
@@ -127,7 +128,7 @@ void MiLightHttpServer::handleSystemPost(RequestContext& request) {
         delay(100);
         ESP.eraseConfig();
     	  delay(100);
-        SPIFFS.format();
+        LittleFS.format();
     	  delay(100);
         ESP.restart();
 
@@ -176,8 +177,8 @@ void MiLightHttpServer::handleGetRadioConfigs(RequestContext& request) {
 }
 
 bool MiLightHttpServer::serveFile(const char* file, const char* contentType) {
-  if (SPIFFS.exists(file)) {
-    File f = SPIFFS.open(file, "r");
+  if (LittleFS.exists(file)) {
+    File f = LittleFS.open(file, "r");
     server.streamFile(f, contentType);
     f.close();
     return true;
@@ -190,7 +191,7 @@ void MiLightHttpServer::handleUpdateFile(const char* filename) {
   HTTPUpload& upload = server.upload();
 
   if (upload.status == UPLOAD_FILE_START) {
-    updateFile = SPIFFS.open(filename, "w");
+    updateFile = LittleFS.open(filename, "w");
   } else if(upload.status == UPLOAD_FILE_WRITE){
     if (updateFile.write(upload.buf, upload.currentSize) != upload.currentSize) {
       Serial.println(F("Error updating web file"));

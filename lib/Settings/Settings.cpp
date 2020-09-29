@@ -1,6 +1,7 @@
 #include <Settings.h>
 #include <ArduinoJson.h>
 #include <FS.h>
+#include <LITTLEFS.h>
 #include <IntParsing.h>
 #include <algorithm>
 #include <JsonHelpers.h>
@@ -207,11 +208,11 @@ void Settings::dumpGroupIdAliases(JsonObject json) {
 }
 
 void Settings::load(Settings& settings) {
-  if (SPIFFS.exists(SETTINGS_FILE)) {
+  if (LittleFS.exists(SETTINGS_FILE)) {
     // Clear in-memory settings
     settings = Settings();
 
-    File f = SPIFFS.open(SETTINGS_FILE, "r");
+    File f = LittleFS.open(SETTINGS_FILE, "r");
 
     DynamicJsonDocument json(MILIGHT_HUB_SETTINGS_BUFFER_SIZE);
     auto error = deserializeJson(json, f);
@@ -237,7 +238,7 @@ String Settings::toJson(const bool prettyPrint) {
 }
 
 void Settings::save() {
-  File f = SPIFFS.open(SETTINGS_FILE, "w");
+  File f = LittleFS.open(SETTINGS_FILE, "w");
 
   if (!f) {
     Serial.println(F("Opening settings file failed"));

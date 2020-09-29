@@ -1,5 +1,6 @@
 #include <GroupStatePersistence.h>
 #include <FS.h>
+#include <LITTLEFS.h>
 
 static const char FILE_PREFIX[] = "group_states/";
 
@@ -8,8 +9,8 @@ void GroupStatePersistence::get(const BulbId &id, GroupState& state) {
   memset(path, 0, 30);
   buildFilename(id, path);
 
-  if (SPIFFS.exists(path)) {
-    File f = SPIFFS.open(path, "r");
+  if (LittleFS.exists(path)) {
+    File f = LittleFS.open(path, "r");
     state.load(f);
     f.close();
   }
@@ -20,7 +21,7 @@ void GroupStatePersistence::set(const BulbId &id, const GroupState& state) {
   memset(path, 0, 30);
   buildFilename(id, path);
 
-  File f = SPIFFS.open(path, "w");
+  File f = LittleFS.open(path, "w");
   state.dump(f);
   f.close();
 }
@@ -29,8 +30,8 @@ void GroupStatePersistence::clear(const BulbId &id) {
   char path[30];
   buildFilename(id, path);
 
-  if (SPIFFS.exists(path)) {
-    SPIFFS.remove(path);
+  if (LittleFS.exists(path)) {
+    LittleFS.remove(path);
   }
 }
 

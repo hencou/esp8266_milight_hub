@@ -5,6 +5,7 @@
 #include <ArduinoJson.h>
 #include <stdlib.h>
 #include <FS.h>
+#include <LITTLEFS.h>
 #include <IntParsing.h>
 #include <Size.h>
 #include <LinkedList.h>
@@ -17,7 +18,7 @@
 #include <Settings.h>
 //#include <MiLightUdpServer.h>
 #include <ESP8266mDNS.h>
-//#include <ESP8266SSDP.h>
+#include <ESP8266SSDP.h>
 #include <MqttClient.h>
 #include <RGBConverter.h>
 //#include <MiLightDiscoveryServer.h>
@@ -273,13 +274,13 @@ void applySettings() {
     mqttClient = new MqttClient(settings, milightClient);
     mqttClient->begin();
     mqttClient->onConnect([]() {
-      if (settings.homeAssistantDiscoveryPrefix.length() > 0) {
-        HomeAssistantDiscoveryClient discoveryClient(settings, mqttClient);
-        discoveryClient.sendDiscoverableDevices(settings.groupIdAliases);
-        discoveryClient.removeOldDevices(settings.deletedGroupIdAliases);
+      //if (settings.homeAssistantDiscoveryPrefix.length() > 0) {
+      //  HomeAssistantDiscoveryClient discoveryClient(settings, mqttClient);
+      //  discoveryClient.sendDiscoverableDevices(settings.groupIdAliases);
+      //  discoveryClient.removeOldDevices(settings.deletedGroupIdAliases);
 
-        settings.deletedGroupIdAliases.clear();
-      }
+      //  settings.deletedGroupIdAliases.clear();
+      //}
     });
 
     bulbStateUpdater = new BulbStateUpdater(settings, *mqttClient, *stateStore);
@@ -372,7 +373,7 @@ void setup() {
   Serial.begin(9600);
 
   // load up our persistent settings from the file system
-  SPIFFS.begin();
+  LittleFS.begin();
   Settings::load(settings);
   applySettings();
 
@@ -380,25 +381,24 @@ void setup() {
   // ledStatus = new LEDStatus(settings.ledPin);
   // ledStatus->continuous(settings.ledModeWifiConfig);
 
-  // // start up the wifi manager
-  // if (! MDNS.begin("milight-hub")) {
-  //   Serial.println(F("Error setting up MDNS responder"));
-  // }
+  if (! MDNS.begin("milight-hub")) {
+    Serial.println(F("Error setting up MDNS responder"));
+  }
 
-  // MDNS.addService("http", "tcp", 80);
+  MDNS.addService("http", "tcp", 80);
 
-  // SSDP.setSchemaURL("description.xml");
-  // SSDP.setHTTPPort(80);
-  // SSDP.setName("ESP8266 MiLight Gateway");
-  // SSDP.setSerialNumber(ESP.getChipId());
-  // SSDP.setURL("/");
-  // SSDP.setDeviceType("upnp:rootdevice");
-  // SSDP.begin();
+  SSDP.setSchemaURL("description.xml");
+  SSDP.setHTTPPort(80);
+  SSDP.setName("ESP8266 MiLight Gateway");
+  SSDP.setSerialNumber(ESP.getChipId());
+  SSDP.setURL("/");
+  SSDP.setDeviceType("upnp:rootdevice");
+  SSDP.begin();
 
   httpServer = new MiLightHttpServer(settings, milightClient, stateStore, packetSender, radios, transitions);
   httpServer->onSettingsSaved(applySettings);
   httpServer->onGroupDeleted(onGroupDeleted);
-  //httpServer->on("/description.xml", HTTP_GET, []() { SSDP.schema(httpServer->client()); });
+  httpServer->on("/description.xml", HTTP_GET, []() { SSDP.schema(httpServer->client()); });
   httpServer->begin();
 
   transitions.addListener(
@@ -452,7 +452,7 @@ void loop() {
     wifiConnected = true;
   }
   
-  if (oldWifiConnected != wifiConnected) {
+  if ((oldWifiConnected != wifiConnected) && wifiConnected == false) {
     wifiOfflineTime = millis();
   }
   oldWifiConnected = wifiConnected;

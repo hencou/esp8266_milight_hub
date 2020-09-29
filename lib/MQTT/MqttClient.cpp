@@ -139,15 +139,16 @@ void MqttClient::handleClient() {
   }
 
   //<Added by HC: send command multiple after a second to ensure lamps received the command>
-  while (millis() - lastCommandTime > repeatTimer && commandBulbIds.size() > 0) {
+  while (millis() - lastCommandTime > repeatTimer && commandBulbIds.Count() > 0) {
 
-    BulbId bulbId = commandBulbIds.shift();
-    String message = commandMessages.shift();
+    BulbId bulbId = commandBulbIds.First();
+    commandBulbIds.RemoveFirst();
+    String output = commandMessages.First();
+    commandMessages.RemoveFirst();
 
     StaticJsonDocument<400> buffer;
-    deserializeJson(buffer, message.c_str());
+    deserializeJson(buffer, output.c_str());
     JsonObject obj = buffer.as<JsonObject>();
-    
     if (obj.containsKey("repeats")) {
       if (obj["repeats"] == "NO") {
         continue;
@@ -156,9 +157,12 @@ void MqttClient::handleClient() {
     
     milightClient->prepare(bulbId.deviceType, bulbId.deviceId, bulbId.groupId);
     milightClient->update(obj);
-    milightClient->update(obj);
+    //milightClient->update(obj);
+
+    if (commandBulbIds.Count() == 0) {
+      commandMessages.Clear();
+    }
   }
-  if (commandBulbIds.size() == 0) commandMessages.clear();
   //</Added by HC
 }
 
@@ -311,15 +315,19 @@ void MqttClient::publishCallback(char* topic, byte* payload, int length) {
 
     milightClient->prepare(config, deviceId, groupId);
     milightClient->update(obj);
-    milightClient->update(obj);
+    //milightClient->update(obj);
     
     BulbId bulbId(deviceId, groupId, config->type);
-    commandBulbIds.push(bulbId);
-
-    char output[200];
+    String output;
   	serializeJson(obj, output);
-    commandMessages.push(output);
 
+    int pos = commandBulbIds.IndexOf(bulbId);
+    if (pos == -1) {
+      commandBulbIds.Add(bulbId);
+      commandMessages.Add(output);
+    } else {
+      commandMessages.Replace(i, output);
+    }
     lastCommandTime = millis();
     }
   }
