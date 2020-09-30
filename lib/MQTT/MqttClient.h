@@ -31,6 +31,11 @@ public:
   void send(const char* topic, const char* message, const bool retain = false);
   void onConnect(OnConnectFn fn);
 
+  //<Added by HC>
+  void enableReceive();
+  void disableReceive();
+  //</Added by HC>
+
   String bindTopicString(const String& topicPattern, const BulbId& bulbId);
 
 private:
@@ -44,6 +49,7 @@ private:
   List<String>  commandMessages;
   unsigned long lastCommandTime;
   unsigned int repeatTimer = 0;
+  bool enabledReceive;
   //</Added by HC
   
   char* domain;

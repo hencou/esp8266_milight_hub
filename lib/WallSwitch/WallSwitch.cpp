@@ -95,6 +95,7 @@ void WallSwitch::checkButton(int buttonPin, uint8_t id) {
     firstTime[id] = millis();
     buttonDirty[id] = true;
     initLongClick[id] = true;
+    mqttClient.disableReceive(); // dinable receiving MQTT commands on button press
   }
 
   if (currentState[id] == LOW) {
@@ -131,8 +132,9 @@ void WallSwitch::checkButton(int buttonPin, uint8_t id) {
 
   if (buttonDirty[id] == true && currentState[id] == HIGH && (millis() - firstTime[id]) > 2000)
   {
-    sendMQTTCommand(id);
     buttonDirty[id] = false;
+    mqttClient.enableReceive(); // enable receiving MQTT commands after button press
+    sendMQTTCommand(id);
   }
 
   previousState[id] = currentState[id];

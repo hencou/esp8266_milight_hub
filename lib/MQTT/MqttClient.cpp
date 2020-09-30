@@ -18,7 +18,8 @@ MqttClient::MqttClient(Settings& settings, MiLightClient*& milightClient)
     milightClient(milightClient),
     settings(settings),
     lastConnectAttempt(0),
-    connected(false)
+    connected(false),
+    enabledReceive(true)
 {
   String strDomain = settings.mqttServer();
   this->domain = new char[strDomain.length() + 1];
@@ -30,6 +31,14 @@ MqttClient::~MqttClient() {
   mqttClient.publish(settings.mqttClientStatusTopic.c_str(), aboutStr.c_str(), true);
   mqttClient.disconnect();
   delete this->domain;
+}
+
+void MqttClient::enableReceive() {
+  this->enabledReceive = true;
+}
+
+void MqttClient::disableReceive() {
+  this->enabledReceive = false;
 }
 
 void MqttClient::onConnect(OnConnectFn fn) {
@@ -155,9 +164,11 @@ void MqttClient::handleClient() {
       }
     }
     
-    milightClient->prepare(bulbId.deviceType, bulbId.deviceId, bulbId.groupId);
-    milightClient->update(obj);
-    //milightClient->update(obj);
+    if (this->enabledReceive == true) {
+      milightClient->prepare(bulbId.deviceType, bulbId.deviceId, bulbId.groupId);
+      milightClient->update(obj);
+      //milightClient->update(obj);
+    }
 
     if (commandBulbIds.Count() == 0) {
       commandMessages.Clear();
@@ -313,9 +324,11 @@ void MqttClient::publishCallback(char* topic, byte* payload, int length) {
     printf("MqttClient - device %04X, group %u\n", deviceId, groupId);
     #endif
 
-    milightClient->prepare(config, deviceId, groupId);
-    milightClient->update(obj);
-    //milightClient->update(obj);
+    if (this->enabledReceive == true) {
+      milightClient->prepare(config, deviceId, groupId);
+      milightClient->update(obj);
+      //milightClient->update(obj);
+    }
     
     BulbId bulbId(deviceId, groupId, config->type);
     String output;
