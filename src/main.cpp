@@ -325,7 +325,27 @@ void applySettings() {
   {
     Serial.print("Station connected, IP: ");
     Serial.println(WiFi.localIP());
-  });
+
+    if (settings.hostname.length() > 0) {
+      if (! MDNS.begin(settings.hostname)) {
+      Serial.println(F("Error setting up MDNS responder"));
+      }
+    } else {
+      if (! MDNS.begin("milight-hub")) {
+      Serial.println(F("Error setting up MDNS responder"));
+      }
+    }
+    
+    MDNS.addService("http", "tcp", 80);
+
+    SSDP.setSchemaURL("description.xml");
+    SSDP.setHTTPPort(80);
+    SSDP.setName("ESP8266 MiLight Gateway");
+    SSDP.setSerialNumber(ESP.getChipId());
+    SSDP.setURL("/");
+    SSDP.setDeviceType("upnp:rootdevice");
+    SSDP.begin();
+    });
 
   disconnectedEventHandler = WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected& event)
   {
@@ -381,20 +401,6 @@ void setup() {
   // ledStatus = new LEDStatus(settings.ledPin);
   // ledStatus->continuous(settings.ledModeWifiConfig);
 
-  if (! MDNS.begin("milight-hub")) {
-    Serial.println(F("Error setting up MDNS responder"));
-  }
-
-  MDNS.addService("http", "tcp", 80);
-
-  SSDP.setSchemaURL("description.xml");
-  SSDP.setHTTPPort(80);
-  SSDP.setName("ESP8266 MiLight Gateway");
-  SSDP.setSerialNumber(ESP.getChipId());
-  SSDP.setURL("/");
-  SSDP.setDeviceType("upnp:rootdevice");
-  SSDP.begin();
-
   httpServer = new MiLightHttpServer(settings, milightClient, stateStore, packetSender, radios, transitions);
   httpServer->onSettingsSaved(applySettings);
   httpServer->onGroupDeleted(onGroupDeleted);
@@ -418,6 +424,7 @@ void setup() {
 
 void loop() {
   httpServer->handleClient();
+  MDNS.update();
 
   if (mqttClient) {
     mqttClient->handleClient();
