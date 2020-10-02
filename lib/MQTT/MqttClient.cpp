@@ -330,18 +330,16 @@ void MqttClient::publishCallback(char* topic, byte* payload, int length) {
     #endif
 
     //handle color_temp and brightness separate to prevent flickering when coming from night mode
+    milightClient->prepare(config, deviceId, groupId);
     if (obj.containsKey(GroupStateFieldNames::COLOR_TEMP) && obj.containsKey(GroupStateFieldNames::BRIGHTNESS)) {
       int colorTemp = obj[GroupStateFieldNames::COLOR_TEMP];
       obj.remove(GroupStateFieldNames::COLOR_TEMP);
 
-      milightClient->prepare(config, deviceId, groupId);
       milightClient->update(obj);
 
       obj[GroupStateFieldNames::COLOR_TEMP] = colorTemp;
-    } else {
-      milightClient->prepare(config, deviceId, groupId);
-      milightClient->update(obj);
     }
+    milightClient->update(obj);
     
     BulbId bulbId(deviceId, groupId, config->type);
     String output;
