@@ -17,13 +17,13 @@ MqttClient::MqttClient(Settings& settings, MiLightClient*& milightClient)
   : mqttClient(tcpClient),
     milightClient(milightClient),
     settings(settings),
-    lastConnectAttempt(0),
-    connected(false),
-    enabledReceive(true)
+    lastConnectAttempt(0)
 {
   String strDomain = settings.mqttServer();
   this->domain = new char[strDomain.length() + 1];
   strcpy(this->domain, strDomain.c_str());
+  this->enableReceive();
+  this->connected = false;
 }
 
 MqttClient::~MqttClient() {
@@ -167,7 +167,7 @@ void MqttClient::handleClient() {
     if (this->enabledReceive == true) {
       milightClient->prepare(bulbId.deviceType, bulbId.deviceId, bulbId.groupId);
       milightClient->update(obj);
-      //milightClient->update(obj);
+      milightClient->update(obj);
     }
 
     if (commandBulbIds.Count() == 0) {
@@ -254,6 +254,11 @@ void MqttClient::publish(
 }
 
 void MqttClient::publishCallback(char* topic, byte* payload, int length) {
+  
+  //<Added by HC>
+  if (this->enabledReceive == false) return;
+   //</Added by HC> 
+
   uint16_t deviceId = 0;
   uint8_t groupId = 0;
   const MiLightRemoteConfig* config = &FUT092Config;
@@ -324,10 +329,18 @@ void MqttClient::publishCallback(char* topic, byte* payload, int length) {
     printf("MqttClient - device %04X, group %u\n", deviceId, groupId);
     #endif
 
-    if (this->enabledReceive == true) {
+    //handle color_temp and brightness separate to prevent flickering when coming from night mode
+    if (obj.containsKey(GroupStateFieldNames::COLOR_TEMP) && obj.containsKey(GroupStateFieldNames::BRIGHTNESS)) {
+      int colorTemp = obj[GroupStateFieldNames::COLOR_TEMP];
+      obj.remove(GroupStateFieldNames::COLOR_TEMP);
+
       milightClient->prepare(config, deviceId, groupId);
       milightClient->update(obj);
-      //milightClient->update(obj);
+
+      obj[GroupStateFieldNames::COLOR_TEMP] = colorTemp;
+    } else {
+      milightClient->prepare(config, deviceId, groupId);
+      milightClient->update(obj);
     }
     
     BulbId bulbId(deviceId, groupId, config->type);
