@@ -148,11 +148,9 @@ void WallSwitch::doShortClicks(uint8_t id)
   if (shortClicks[id] == 1)
   {
     milightClient->updateStatus(OFF);
-    milightClient->updateStatus(OFF);
   }
   if (shortClicks[id] == 2)
   {
-    milightClient->enableNightMode();
     milightClient->enableNightMode();
 
     //no Off command to other espMH's:
@@ -160,7 +158,6 @@ void WallSwitch::doShortClicks(uint8_t id)
   }
   if (shortClicks[id] == 3)
   {
-    milightClient->updateColorWhite();
     milightClient->updateColorWhite();
   }
   if (shortClicks[id] == 4)
@@ -175,6 +172,7 @@ void WallSwitch::doLongClicks(uint8_t id)
 {
   BulbId bulbId(settings.gatewayConfigs[0]->deviceId, id + 1, remoteConfig->type);
   milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, id + 1);
+  milightClient->setRepeatsOverride(10);
 
   //set lamps on before raising brightness and initialize raising state
   if (initLongClick[id])
@@ -230,6 +228,7 @@ void WallSwitch::doLongClicks(uint8_t id)
       milightClient->updateTemperature(Units::miredsToWhiteVal(temperature, 100));
     }
   }
+  milightClient->clearRepeatsOverride();
 }
 
 //Send command update to MQTT mesh_in/milight to update other devices with same bulbId
@@ -386,9 +385,6 @@ void WallSwitch::doLightState() {
 
     milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 0);
     milightClient->updateTemperature(100);
-    milightClient->updateStatus(OFF);
-
-    milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 0);
     milightClient->updateStatus(OFF);
   }
 }

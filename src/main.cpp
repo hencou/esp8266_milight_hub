@@ -26,7 +26,7 @@
 #include <BulbStateUpdater.h>
 #include <RadioSwitchboard.h>
 #include <PacketSender.h>
-#include <HomeAssistantDiscoveryClient.h>
+//#include <HomeAssistantDiscoveryClient.h>
 #include <TransitionController.h>
 //<Added by HC>
 #include <WallSwitch.h>
@@ -274,13 +274,13 @@ void applySettings() {
     mqttClient = new MqttClient(settings, milightClient);
     mqttClient->begin();
     mqttClient->onConnect([]() {
-      //if (settings.homeAssistantDiscoveryPrefix.length() > 0) {
+      if (settings.homeAssistantDiscoveryPrefix.length() > 0) {
       //  HomeAssistantDiscoveryClient discoveryClient(settings, mqttClient);
       //  discoveryClient.sendDiscoverableDevices(settings.groupIdAliases);
       //  discoveryClient.removeOldDevices(settings.deletedGroupIdAliases);
 
-      //  settings.deletedGroupIdAliases.clear();
-      //}
+        settings.deletedGroupIdAliases.clear();
+      }
     });
 
     bulbStateUpdater = new BulbStateUpdater(settings, *mqttClient, *stateStore);

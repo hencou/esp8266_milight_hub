@@ -74,7 +74,8 @@ bool MqttClient::connect() {
   sprintf_P(nameBuffer, PSTR("milight-hub-%u"), ESP.getChipId());
 
 #ifdef MQTT_DEBUG
-    Serial.println(F("MqttClient - connecting"));
+    Serial.println(F("MqttClient - connecting using name"));
+    Serial.println(nameBuffer);
 #endif
 
   if (settings.mqttUsername.length() > 0 && settings.mqttClientStatusTopic.length() > 0) {
@@ -129,7 +130,8 @@ void MqttClient::reconnect() {
       Serial.println(F("MqttClient - Successfully connected to MQTT server"));
 #endif
     } else {
-      Serial.println(F("ERROR: Failed to connect to MQTT server"));
+      Serial.print(F("ERROR: Failed to connect to MQTT server rc="));
+      Serial.println(mqttClient.state());
     }
   }
 
@@ -166,7 +168,6 @@ void MqttClient::handleClient() {
     
     if (this->enabledReceive == true) {
       milightClient->prepare(bulbId.deviceType, bulbId.deviceId, bulbId.groupId);
-      milightClient->update(obj);
       milightClient->update(obj);
     }
 
@@ -329,16 +330,7 @@ void MqttClient::publishCallback(char* topic, byte* payload, int length) {
     printf("MqttClient - device %04X, group %u\n", deviceId, groupId);
     #endif
 
-    //handle color_temp and brightness separate to prevent flickering when coming from night mode
     milightClient->prepare(config, deviceId, groupId);
-    if (obj.containsKey(GroupStateFieldNames::COLOR_TEMP) && obj.containsKey(GroupStateFieldNames::BRIGHTNESS)) {
-      int colorTemp = obj[GroupStateFieldNames::COLOR_TEMP];
-      obj.remove(GroupStateFieldNames::COLOR_TEMP);
-
-      milightClient->update(obj);
-
-      obj[GroupStateFieldNames::COLOR_TEMP] = colorTemp;
-    }
     milightClient->update(obj);
     
     BulbId bulbId(deviceId, groupId, config->type);
