@@ -331,7 +331,22 @@ void MqttClient::publishCallback(char* topic, byte* payload, int length) {
     #endif
 
     milightClient->prepare(config, deviceId, groupId);
+<<<<<<< HEAD
     milightClient->update(obj);
+=======
+    if (obj.containsKey(GroupStateFieldNames::COLOR_TEMP) && obj.containsKey(GroupStateFieldNames::BRIGHTNESS)) {
+      int colorTemp = obj[GroupStateFieldNames::COLOR_TEMP];
+      obj.remove(GroupStateFieldNames::COLOR_TEMP);
+
+      milightClient->update(obj);
+      milightClient->update(obj);
+
+      obj[GroupStateFieldNames::COLOR_TEMP] = colorTemp;
+    } else {
+      milightClient->update(obj);
+      milightClient->update(obj);
+    }
+>>>>>>> 4f97c103cc671cda33db4a88c19e5577988ae692
     
     BulbId bulbId(deviceId, groupId, config->type);
     String output;
