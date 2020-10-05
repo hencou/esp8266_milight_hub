@@ -338,6 +338,10 @@ void MiLightClient::update(JsonObject request) {
     if (request[GroupStateFieldNames::EFFECT] == "white_mode" || request[GroupStateFieldNames::EFFECT] == "white") {
       request.remove(GroupStateFieldNames::EFFECT);
     }
+
+    if (request.containsKey(GroupStateFieldNames::COLOR_TEMP) || request.containsKey(GroupStateFieldNames::TEMPERATURE)) {
+      this->updateColorWhite();
+    }
   }
   //</Added by HC>
 

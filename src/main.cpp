@@ -5,7 +5,6 @@
 #include <ArduinoJson.h>
 #include <stdlib.h>
 #include <FS.h>
-#include <LITTLEFS.h>
 #include <IntParsing.h>
 #include <Size.h>
 #include <LinkedList.h>
@@ -327,7 +326,7 @@ void applySettings() {
     Serial.println(WiFi.localIP());
 
     if (settings.hostname.length() > 0) {
-      if (! MDNS.begin(settings.hostname)) {
+      if (! MDNS.begin(settings.hostname.c_str())) {
       Serial.println(F("Error setting up MDNS responder"));
       }
     } else {
@@ -376,6 +375,7 @@ bool shouldRestart() {
 // void handleLED() {
 //   ledStatus->handle();
 // }
+
 // Called when a group is deleted via the REST API.  Will publish an empty message to
 // the MQTT topic to delete retained state
 void onGroupDeleted(const BulbId& id) {
@@ -393,7 +393,7 @@ void setup() {
   Serial.begin(9600);
 
   // load up our persistent settings from the file system
-  LittleFS.begin();
+  SPIFFS.begin();
   Settings::load(settings);
   applySettings();
 
