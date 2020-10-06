@@ -274,9 +274,9 @@ void applySettings() {
     mqttClient->begin();
     mqttClient->onConnect([]() {
       if (settings.homeAssistantDiscoveryPrefix.length() > 0) {
-      //  HomeAssistantDiscoveryClient discoveryClient(settings, mqttClient);
-      //  discoveryClient.sendDiscoverableDevices(settings.groupIdAliases);
-      //  discoveryClient.removeOldDevices(settings.deletedGroupIdAliases);
+        //HomeAssistantDiscoveryClient discoveryClient(settings, mqttClient);
+        //discoveryClient.sendDiscoverableDevices(settings.groupIdAliases);
+        //discoveryClient.removeOldDevices(settings.deletedGroupIdAliases);
 
         settings.deletedGroupIdAliases.clear();
       }
@@ -344,7 +344,7 @@ void applySettings() {
     SSDP.setURL("/");
     SSDP.setDeviceType("upnp:rootdevice");
     SSDP.begin();
-    });
+  });
 
   disconnectedEventHandler = WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected& event)
   {

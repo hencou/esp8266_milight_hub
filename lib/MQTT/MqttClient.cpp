@@ -63,7 +63,9 @@ void MqttClient::begin() {
   );
   reconnect();
 
+  //<Added by HC>
   repeatTimer = random(2000, 3000);
+  //</Added by HC
 }
 
 bool MqttClient::connect() {
@@ -150,29 +152,30 @@ void MqttClient::handleClient() {
   }
 
   //<Added by HC: send command multiple after a second to ensure lamps received the command>
-  while (millis() - lastCommandTime > repeatTimer && commandBulbIds.Count() > 0) {
-
-    BulbId bulbId = commandBulbIds.First();
-    commandBulbIds.RemoveFirst();
-    String output = commandMessages.First();
-    commandMessages.RemoveFirst();
+  while (millis() - lastCommandTime > repeatTimer && bulbIds.Count() > 0) {
+    
+    BulbId bulbId = bulbIds.First();
+    bulbIds.RemoveFirst();
+    String command = commands.First();
+    commands.RemoveFirst();
 
     StaticJsonDocument<400> buffer;
-    deserializeJson(buffer, output.c_str());
+    deserializeJson(buffer, command.c_str());
     JsonObject obj = buffer.as<JsonObject>();
+
     if (obj.containsKey("repeats")) {
       if (obj["repeats"] == "NO") {
         continue;
       }
     }
+
+    if (bulbIds.Count() == 0) {
+      commands.Clear();
+    }
     
     if (this->enabledReceive == true) {
       milightClient->prepare(bulbId.deviceType, bulbId.deviceId, bulbId.groupId);
       milightClient->update(obj);
-    }
-
-    if (commandBulbIds.Count() == 0) {
-      commandMessages.Clear();
     }
   }
   //</Added by HC
@@ -321,30 +324,32 @@ void MqttClient::publishCallback(char* topic, byte* payload, int length) {
   deserializeJson(buffer, cstrPayload);
   JsonObject obj = buffer.as<JsonObject>();
 
+  char output[200];
+  serializeJson(obj, output);
+  String strOutput = String(output);
+
   //<changed by HC
   //accept incoming MQTT command only when deviceId is in use as UDP device
   for (size_t i = 0; i < settings.gatewayConfigs.size(); i++) {
     if (deviceId == settings.gatewayConfigs[i]->deviceId) {
 
-    #ifdef MQTT_DEBUG
-    printf("MqttClient - device %04X, group %u\n", deviceId, groupId);
-    #endif
+      #ifdef MQTT_DEBUG
+      printf("MqttClient - device %04X, group %u\n", deviceId, groupId);
+      #endif
 
-    milightClient->prepare(config, deviceId, groupId);
-    milightClient->update(obj);
-    
-    BulbId bulbId(deviceId, groupId, config->type);
-    String output;
-  	serializeJson(obj, output);
+      milightClient->prepare(config, deviceId, groupId);
+      milightClient->update(obj);
 
-    int pos = commandBulbIds.IndexOf(bulbId);
-    if (pos == -1) {
-      commandBulbIds.Add(bulbId);
-      commandMessages.Add(output);
-    } else {
-      commandMessages.Replace(i, output);
-    }
-    lastCommandTime = millis();
+      BulbId bulbId(deviceId, groupId, config->type);
+
+      int pos = bulbIds.IndexOf(bulbId);
+      if (pos > -1) {
+        commands.Replace(pos, strOutput);
+      } else {
+        bulbIds.Add(bulbId);
+        commands.Add(strOutput);
+      }
+      lastCommandTime = millis();
     }
   }
   //<changed by HC

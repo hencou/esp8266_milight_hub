@@ -45,11 +45,11 @@ private:
   Settings& settings;
 
   //<Added by HC>
-  List<BulbId>  commandBulbIds;
-  List<String>  commandMessages;
   unsigned long lastCommandTime;
   unsigned int repeatTimer = 0;
   bool enabledReceive;
+  List<BulbId> bulbIds;
+  List<String> commands;
   //</Added by HC
   
   char* domain;
