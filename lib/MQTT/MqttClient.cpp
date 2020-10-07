@@ -326,7 +326,6 @@ void MqttClient::publishCallback(char* topic, byte* payload, int length) {
 
   char output[200];
   serializeJson(obj, output);
-  String strOutput = String(output);
 
   //<changed by HC
   //accept incoming MQTT command only when deviceId is in use as UDP device
@@ -344,9 +343,11 @@ void MqttClient::publishCallback(char* topic, byte* payload, int length) {
 
       int pos = bulbIds.IndexOf(bulbId);
       if (pos > -1) {
+        String strOutput = String(output);
         commands.Replace(pos, strOutput);
       } else {
         bulbIds.Add(bulbId);
+        String strOutput = String(output);
         commands.Add(strOutput);
       }
       lastCommandTime = millis();
