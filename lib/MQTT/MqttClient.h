@@ -16,6 +16,10 @@
 #ifndef _MQTT_CLIENT_H
 #define _MQTT_CLIENT_H
 
+struct Command {
+  char command[200];
+};
+
 class MqttClient {
 public:
   using OnConnectFn = std::function<void()>;
@@ -49,7 +53,7 @@ private:
   unsigned int repeatTimer = 0;
   bool enabledReceive;
   List<BulbId> bulbIds;
-  List<String> commands;
+  List<Command> commands;
   //</Added by HC
   
   char* domain;

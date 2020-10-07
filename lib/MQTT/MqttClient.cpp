@@ -156,11 +156,11 @@ void MqttClient::handleClient() {
     
     BulbId bulbId = bulbIds.First();
     bulbIds.RemoveFirst();
-    String command = commands.First();
+    Command command = commands.First();
     commands.RemoveFirst();
 
     StaticJsonDocument<400> buffer;
-    deserializeJson(buffer, command.c_str());
+    deserializeJson(buffer, command.command);
     JsonObject obj = buffer.as<JsonObject>();
 
     if (obj.containsKey("repeats")) {
@@ -320,13 +320,6 @@ void MqttClient::publishCallback(char* topic, byte* payload, int length) {
     return;
   }
 
-  StaticJsonDocument<400> buffer;
-  deserializeJson(buffer, cstrPayload);
-  JsonObject obj = buffer.as<JsonObject>();
-
-  char output[200];
-  serializeJson(obj, output);
-
   //<changed by HC
   //accept incoming MQTT command only when deviceId is in use as UDP device
   for (size_t i = 0; i < settings.gatewayConfigs.size(); i++) {
@@ -336,19 +329,23 @@ void MqttClient::publishCallback(char* topic, byte* payload, int length) {
       printf("MqttClient - device %04X, group %u\n", deviceId, groupId);
       #endif
 
+      StaticJsonDocument<400> buffer;
+      deserializeJson(buffer, cstrPayload);
+      JsonObject obj = buffer.as<JsonObject>();
+
       milightClient->prepare(config, deviceId, groupId);
       milightClient->update(obj);
 
       BulbId bulbId(deviceId, groupId, config->type);
+      Command command = Command();
+      serializeJson(obj, command.command);
 
       int pos = bulbIds.IndexOf(bulbId);
       if (pos > -1) {
-        String strOutput = String(output);
-        commands.Replace(pos, strOutput);
+        commands.Replace(pos, command);
       } else {
         bulbIds.Add(bulbId);
-        String strOutput = String(output);
-        commands.Add(strOutput);
+        commands.Add(command);
       }
       lastCommandTime = millis();
     }
