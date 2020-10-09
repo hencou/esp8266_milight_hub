@@ -383,8 +383,10 @@ void WallSwitch::doLightState() {
 
     isStartUp = false;
 
-    milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, 0);
-    milightClient->updateTemperature(100);
-    milightClient->updateStatus(OFF);
+    for (size_t i = 1; i <= remoteConfig->numGroups; i++) {
+      milightClient->prepare(remoteConfig, settings.gatewayConfigs[0]->deviceId, i);
+      milightClient->updateTemperature(100);
+      milightClient->updateStatus(OFF);
+    }  
   }
 }
